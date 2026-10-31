@@ -14,6 +14,16 @@ A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs,
 - Editable profiles with age, profession, location, timezone, skills, interests, and separate experience fields.
 - Server-side registration, login, logout, session handling, account-scoped profile/checklist storage, and PDF/TXT résumé upload/download/delete **when Atlas is connected**.
 
+## Chat, shared posts, and phone sharing
+
+**Chat & links** is a private dashboard section. Conversations, search briefs, preferred source links, and imported leads are scoped to the authenticated account in Atlas. The brief can optionally include the user's profession, location, skills, interests, and experience in AI requests. Names, email addresses, age, passwords, and résumé contents are excluded from that optional profile context. Chat messages, saved brief, and up to eight active shared leads are sent as conversation context when the user sends a message to a configured model.
+
+Without model credentials, the UI explicitly says **Notes mode**. Messages are saved, but no AI reply or live research is simulated. Set `MODEL_API_KEY` privately for direct Meta Responses calls with `web_search`, or set all of `AGENT_API_KEY`, `AGENT_BASE_URL` (HTTPS API base ending in `/v1`), and `AGENT_MODEL` for an OpenAI-compatible host serving an eligible Meta open model. The hosted-open-model path currently has no search tools. Never add API keys to `NEXT_PUBLIC_` variables. Each user is limited to 30 chat calls and 30 imports per 15-minute bucket. These application limits do not replace provider billing controls.
+
+Instagram, LinkedIn, and ordinary website URLs can be saved with a title and caption. Only known Instagram post/reel and LinkedIn post URLs get a bounded, unauthenticated public HTML metadata attempt. The server does not fetch arbitrary websites, follow redirects, use social login cookies, download videos, or bypass login walls. Failed/blocked previews become **caption needed** links. Imported leads and preview text remain unverified; discussing a lead does not automatically add a verified listing to Discover. Users can archive and restore links.
+
+The installable app manifest registers `/share` as a URL/text share receiver on supporting devices and browsers. GET sharing only displays incoming content: it does not write to Atlas. **Review in my inbox** carries a draft in browser session storage through sign-in; the user explicitly saves it afterward. Copy/paste is available on all supported browsers. Native Instagram/LinkedIn Share-menu availability must be tested on the target phone; it is not supported everywhere. No offline caching of private dashboard data is added.
+
 ## Current boundaries
 
 **All eight listings are fictional samples.** The titles, organizers, dates, eligibility, prices, and funding are demonstration content, not researched opportunities. Dates are generated relative to the current month to exercise the filters. Profile relevance is deterministic, not AI matching.
@@ -22,7 +32,7 @@ A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs,
 
 The existing MyCloset cluster in the user's Atlas account was left paused at the user's request. This app targets a separate database named `opportunity_compass`. No existing application collections were changed.
 
-Live web discovery, Meta-generated matching/checklists, automatic résumé extraction, live video recommendations, Google Calendar OAuth/sync, and a Chrome extension are not implemented in this starter. The video link opens a general YouTube search and is labelled accordingly. The sample illustrations were made with the built-in image-generation tool, not Muse Image.
+Automatic discovery into dashboard cards, automatic résumé extraction, live video recommendations, Google Calendar OAuth/sync, and a Chrome extension are not implemented. The optional direct Meta chat connector can perform cited web research when configured, but its outputs are not automatically published as verified listings. Live model calls have not been verified with credentials. The video link opens a general YouTube search and is labelled accordingly. The sample illustrations were made with the built-in image-generation tool, not Muse Image.
 
 ## Run locally
 
@@ -53,13 +63,16 @@ Never commit `.env.local`, connection strings, passwords, résumé content, or t
 
 The app creates only these collections in its configured database:
 
-| Collection    | Purpose                                                   |
-| ------------- | --------------------------------------------------------- |
-| `users`       | Normalized email, salted scrypt password hash, profile    |
-| `sessions`    | Hashed random session tokens, user ID, TTL expiry         |
-| `saved`       | User-scoped sample opportunity status and completed tasks |
-| `resumes`     | One private PDF/TXT per account, max 2 MB                 |
-| `rate_limits` | Expiring per-email login/signup attempt counters          |
+| Collection          | Purpose                                                                 |
+| ------------------- | ----------------------------------------------------------------------- |
+| `agent_messages`    | Account-scoped conversation messages                                    |
+| `agent_preferences` | Saved search brief, source links, and profile-sharing choice            |
+| `shared_leads`      | User-provided opportunity links, captions, and reversible archive state |
+| `users`             | Normalized email, salted scrypt password hash, profile                  |
+| `sessions`          | Hashed random session tokens, user ID, TTL expiry                       |
+| `saved`             | User-scoped sample opportunity status and completed tasks               |
+| `resumes`           | One private PDF/TXT per account, max 2 MB                               |
+| `rate_limits`       | Expiring per-email login/signup attempt counters                        |
 
 All personal-data endpoints derive ownership from the server session, not a client-supplied user ID. Résumé download requires authentication. Authentication uses HttpOnly, SameSite cookies; Secure is enabled when `APP_ORIGIN` is HTTPS. Cross-origin mutations are rejected. Public launch additionally needs email verification/recovery, broader abuse controls, operational monitoring, and an authenticated Atlas integration test. Those are not silently simulated here.
 

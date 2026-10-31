@@ -1,3 +1,4 @@
+import { handleAgent } from "@/lib/agent-api";
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { Binary, MongoServerError } from "mongodb";
@@ -19,6 +20,7 @@ import { emptyProfile } from "@/lib/types";
 import { catalog } from "@/lib/catalog";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 const json = (data: unknown, status = 200) =>
   NextResponse.json(data, { status, headers: { "Cache-Control": "no-store" } });
 async function input(req: NextRequest) {
@@ -111,6 +113,15 @@ async function handle(req: NextRequest) {
       );
     const db = await database();
     const userId = u._id.toString();
+    if (pathname.startsWith("agent/"))
+      return await handleAgent(
+        db,
+        userId,
+        u.profile,
+        pathname,
+        req.method,
+        () => input(req),
+      );
     if (req.method === "PUT" && pathname === "profile") {
       const profile = profileSchema.parse(await input(req));
       await db

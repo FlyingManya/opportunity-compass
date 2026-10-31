@@ -1,6 +1,8 @@
 "use client";
+import AgentPanel from "./AgentPanel";
 import { useState, useEffect, useRef } from "react";
 import {
+  MessageCircle,
   Compass as CompassIcon,
   LayoutGrid,
   Bookmark,
@@ -54,7 +56,7 @@ import {
   relevance,
 } from "@/lib/catalog";
 import { calendarFile } from "@/lib/calendar";
-type View = "discover" | "saved" | "calendar" | "profile";
+type View = "discover" | "saved" | "calendar" | "profile" | "agent";
 const categoryIcons = {
   all: Sparkles,
   jobs: BriefcaseBusiness,
@@ -149,6 +151,15 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   );
   useEffect(() => {
     let alive = true;
+    try {
+      if (
+        new URLSearchParams(window.location.search).get("view") === "agent" ||
+        sessionStorage.getItem("compass-shared-draft")
+      )
+        setView("agent");
+    } catch {
+      /* The shared link can still be pasted manually. */
+    }
     (async () => {
       try {
         const [status, me] = await Promise.all([api("status"), api("me")]);
@@ -632,6 +643,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
           {(
             [
               { id: "discover", name: "Discover", Icon: LayoutGrid },
+              { id: "agent", name: "Chat & links", Icon: MessageCircle },
               { id: "saved", name: "Interested", Icon: Bookmark },
               { id: "calendar", name: "My calendar", Icon: CalendarDays },
               { id: "profile", name: "My profile", Icon: UserRound },
@@ -753,13 +765,15 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             <span>Your space</span>
             <ChevronRight size={12} />
             <strong>
-              {view === "discover"
-                ? "Discover"
-                : view === "saved"
-                  ? "Interested"
-                  : view === "calendar"
-                    ? "My calendar"
-                    : "My profile"}
+              {view === "agent"
+                ? "Chat & links"
+                : view === "discover"
+                  ? "Discover"
+                  : view === "saved"
+                    ? "Interested"
+                    : view === "calendar"
+                      ? "My calendar"
+                      : "My profile"}
             </strong>
           </div>
           <div className="top-actions">
@@ -804,6 +818,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
           </div>
         </header>
         <main className="main-content">
+          {view === "agent" && <AgentPanel />}
           {view === "discover" && (
             <>
               <div className="greeting-row">

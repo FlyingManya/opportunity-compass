@@ -9,6 +9,25 @@ assert.ok(!welcome.includes("Build something that matters."));
 const dashboard = await fetch(base + "/dashboard", { redirect: "manual" });
 assert.equal(dashboard.status, 307);
 assert.equal(new URL(dashboard.headers.get("location"), base).pathname, "/");
+const share = await fetch(
+  base +
+    "/share?url=https%3A%2F%2Fwww.instagram.com%2Freel%2Fexample%2F&title=Shared%20event",
+);
+assert.equal(share.status, 200);
+assert.ok((await share.text()).includes("Sign in to continue"));
+const manifest = await fetch(base + "/manifest.webmanifest").then((response) =>
+  response.json(),
+);
+assert.equal(manifest.share_target.action, "/share");
+for (const path of [
+  "agent/state",
+  "agent/links",
+  "agent/chat",
+  "agent/preferences",
+]) {
+  const response = await fetch(base + "/api/" + path);
+  assert.equal(response.status, 401);
+}
 const status = await fetch(base + "/api/status").then((r) => r.json());
 assert.ok(
   ["not-configured", "connected", "unavailable"].includes(status.database),
