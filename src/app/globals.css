@@ -3634,3 +3634,26 @@ h1 {
     display: none;
   }
 }
+
+/* Use a compact, swipeable row instead of spreading a few stories across it. */
+@media (max-width: 720px) {
+  .story-circles {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    overscroll-behavior-x: contain;
+  }
+  .story-circles button:nth-child(n) {
+    display: flex;
+    flex: 0 0 80px;
+    min-width: 0;
+  }
+  .story-circles small {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+  }
+}
