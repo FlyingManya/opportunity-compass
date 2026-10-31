@@ -19,6 +19,15 @@ export async function database() {
         await client.connect();
         const db = client.db(process.env.MONGODB_DB || "opportunity_compass");
         await Promise.all([
+          db
+            .collection("agent_messages")
+            .createIndex({ userId: 1, createdAt: -1 }),
+          db
+            .collection("shared_leads")
+            .createIndex({ userId: 1, url: 1 }, { unique: true }),
+          db
+            .collection("agent_preferences")
+            .createIndex({ userId: 1 }, { unique: true }),
           db.collection("users").createIndex({ email: 1 }, { unique: true }),
           db
             .collection("sessions")

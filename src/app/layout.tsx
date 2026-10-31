@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "Opportunity Compass — Find your next possibility",
+  manifest: "/manifest.webmanifest",
   description:
     "A personal space to discover opportunities, explore new interests, and take the next step.",
 };

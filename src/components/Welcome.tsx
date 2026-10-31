@@ -17,8 +17,12 @@ import {
 
 type Mode = "login" | "signup";
 
-export default function Welcome() {
-  const [mode, setMode] = useState<Mode | null>(null);
+export default function Welcome({
+  initialMode = null,
+}: {
+  initialMode?: Mode | null;
+}) {
+  const [mode, setMode] = useState<Mode | null>(initialMode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const panel = useRef<HTMLDivElement>(null);
@@ -79,7 +83,12 @@ export default function Welcome() {
             ? "Sign-in is temporarily unavailable. Please try again shortly."
             : result.error || "We couldn’t sign you in. Please try again.",
         );
-      window.location.assign("/dashboard");
+      let target = "/dashboard";
+      try {
+        if (sessionStorage.getItem("compass-shared-draft"))
+          target += "?view=agent";
+      } catch {}
+      window.location.assign(target);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
       setBusy(false);
