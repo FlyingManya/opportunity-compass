@@ -8,12 +8,10 @@ export async function identity() {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const db = await database();
-  const s = await db
-    .collection("sessions")
-    .findOne({
-      _id: tokenHash(token) as never,
-      expiresAt: { $gt: new Date() },
-    });
+  const s = await db.collection("sessions").findOne({
+    _id: tokenHash(token) as never,
+    expiresAt: { $gt: new Date() },
+  });
   if (!s) return null;
   return db.collection("users").findOne({ _id: new ObjectId(s.userId) });
 }
@@ -37,15 +35,11 @@ export async function publicUser(
 }
 export async function makeSession(userId: string) {
   const token = newToken();
-  await (
-    await database()
-  )
-    .collection("sessions")
-    .insertOne({
-      _id: tokenHash(token) as never,
-      userId,
-      expiresAt: new Date(Date.now() + 7 * 86400000),
-    });
+  await (await database()).collection("sessions").insertOne({
+    _id: tokenHash(token) as never,
+    userId,
+    expiresAt: new Date(Date.now() + 7 * 86400000),
+  });
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.APP_ORIGIN?.startsWith("https:") || false,

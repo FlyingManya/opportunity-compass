@@ -31,16 +31,14 @@ async function input(req: NextRequest) {
 async function throttle(email: string) {
   const db = await database();
   const bucket = Math.floor(Date.now() / 900000);
-  const result = await db
-    .collection("rate_limits")
-    .findOneAndUpdate(
-      { _id: tokenHash(`${email}:${bucket}`) as never },
-      {
-        $inc: { count: 1 },
-        $setOnInsert: { expiresAt: new Date(Date.now() + 1800000) },
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+  const result = await db.collection("rate_limits").findOneAndUpdate(
+    { _id: tokenHash(`${email}:${bucket}`) as never },
+    {
+      $inc: { count: 1 },
+      $setOnInsert: { expiresAt: new Date(Date.now() + 1800000) },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
   return (result?.count || 0) <= 15;
 }
 async function handle(req: NextRequest) {
@@ -72,14 +70,12 @@ async function handle(req: NextRequest) {
           { error: "Too many attempts. Please try again in 15 minutes." },
           429,
         );
-      const result = await db
-        .collection("users")
-        .insertOne({
-          email: b.email,
-          passwordHash: await hashPassword(b.password),
-          profile: { ...emptyProfile, name: b.name },
-          createdAt: new Date(),
-        });
+      const result = await db.collection("users").insertOne({
+        email: b.email,
+        passwordHash: await hashPassword(b.password),
+        profile: { ...emptyProfile, name: b.name },
+        createdAt: new Date(),
+      });
       await makeSession(result.insertedId.toString());
       const u = await identity();
       return json({ user: await publicUser(u!) }, 201);
@@ -138,19 +134,17 @@ async function handle(req: NextRequest) {
       if (!opportunity) return json({ error: "Opportunity not found." }, 404);
       if (b.completedTasks.some((n) => n >= opportunity.tasks.length))
         return json({ error: "Invalid checklist item." }, 400);
-      await db
-        .collection("saved")
-        .updateOne(
-          { userId, opportunityId: b.opportunityId },
-          {
-            $set: {
-              status: b.status,
-              completedTasks: [...new Set(b.completedTasks)],
-            },
-            $setOnInsert: { savedAt: new Date().toISOString() },
+      await db.collection("saved").updateOne(
+        { userId, opportunityId: b.opportunityId },
+        {
+          $set: {
+            status: b.status,
+            completedTasks: [...new Set(b.completedTasks)],
           },
-          { upsert: true },
-        );
+          $setOnInsert: { savedAt: new Date().toISOString() },
+        },
+        { upsert: true },
+      );
       return json({ ok: true });
     }
     if (req.method === "DELETE" && pathname === "saved") {
@@ -178,21 +172,19 @@ async function handle(req: NextRequest) {
         bytes.subarray(0, 5).toString() !== "%PDF-"
       )
         return json({ error: "This file is not a valid PDF." }, 400);
-      await db
-        .collection("resumes")
-        .updateOne(
-          { userId },
-          {
-            $set: {
-              name: b.name.slice(0, 180),
-              type: b.type,
-              size: bytes.length,
-              data: new Binary(bytes),
-              updatedAt: new Date(),
-            },
+      await db.collection("resumes").updateOne(
+        { userId },
+        {
+          $set: {
+            name: b.name.slice(0, 180),
+            type: b.type,
+            size: bytes.length,
+            data: new Binary(bytes),
+            updatedAt: new Date(),
           },
-          { upsert: true },
-        );
+        },
+        { upsert: true },
+      );
       return json({
         resume: { name: b.name.slice(0, 180), size: bytes.length },
       });

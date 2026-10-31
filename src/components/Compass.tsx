@@ -865,12 +865,10 @@ export default function Compass() {
                       className="hero-button"
                       onClick={() => {
                         searchRef.current?.focus();
-                        document
-                          .querySelector(".search-card")
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          });
+                        document.querySelector(".search-card")?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
                       }}
                     >
                       Let’s find something <ArrowUpRight size={16} />
