@@ -1,4 +1,9 @@
-import Compass from "@/components/Compass";
-export default function Page() {
-  return <Compass />;
+import { redirect } from "next/navigation";
+import { identity } from "@/lib/auth";
+import Welcome from "@/components/Welcome";
+
+export default async function Page() {
+  const user = await identity();
+  if (user) redirect("/dashboard");
+  return <Welcome />;
 }
