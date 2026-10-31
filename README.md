@@ -4,6 +4,9 @@ A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs,
 
 ## What works
 
+- Public welcome page at `/` with sign-in and account creation. Signed-in visitors go directly to `/dashboard`.
+- Server-side session check on `/dashboard`; anonymous visitors are redirected to the welcome page before dashboard content renders. Sign-out returns to the welcome page.
+
 - A sample dashboard with category, keyword, format, and month filters. Application deadlines and event dates can be filtered separately.
 - Opportunity details, illustrative relevance explanations, save/unsave, application status, and editable checklists.
 - Stories with pause/play, previous/next, details, and saving.
@@ -15,7 +18,7 @@ A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs,
 
 **All eight listings are fictional samples.** The titles, organizers, dates, eligibility, prices, and funding are demonstration content, not researched opportunities. Dates are generated relative to the current month to exercise the filters. Profile relevance is deterministic, not AI matching.
 
-**There is no local database fallback.** Without a working MongoDB URI, the dashboard is an explicitly labelled preview. Saving sample listings uses browser session storage; preview profile edits stay only in React memory. Sign-up/login are disabled until the database status check succeeds.
+**There is no local database fallback or anonymous dashboard.** Without a working MongoDB connection, visitors can see the welcome page, but cannot create an account or enter the dashboard. Profiles, saved opportunities, and checklists are scoped to the signed-in user. The opportunity catalogue remains fictional demo content; ranking uses that user’s profile.
 
 The existing MyCloset cluster in the user's Atlas account was left paused at the user's request. This app targets a separate database named `opportunity_compass`. No existing application collections were changed.
 
@@ -31,7 +34,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open **http://127.0.0.1:4180**. The dashboard can be explored without credentials. Production mode:
+Open **http://127.0.0.1:4180** for the public welcome page. Entering the dashboard requires an account and a connected Atlas database. Production mode:
 
 ```sh
 npm run build
@@ -68,7 +71,7 @@ npm run typecheck
 npm run build
 ```
 
-Tests cover password hashing, session tokens, validation, profile fields, filtering, matching, calendar escaping/exclusive end dates, and origin handling. Browser verification covers dashboard interactions, saved lists/checklists, Stories, profile preview, calendar view, database setup states, and mobile layout. Real Atlas account creation and isolation must still be tested with an approved running cluster and credentials.
+Tests cover password hashing, session tokens, validation, profile fields, filtering, matching, calendar escaping/exclusive end dates, and origin handling. Browser verification covers dashboard interactions, saved lists/checklists, Stories, profile preview, calendar view, database setup states, and mobile layout. HTTP smoke checks also assert that the welcome page contains no dashboard listings and that anonymous requests to `/dashboard` redirect to `/`. Real Atlas account creation and isolation must still be tested with a running cluster and credentials.
 
 ## Next development stages
 

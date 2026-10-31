@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 const base = process.env.APP_ORIGIN || "http://127.0.0.1:4180";
+const home = await fetch(base + "/");
+assert.equal(home.status, 200);
+const welcome = await home.text();
+assert.ok(welcome.includes("A little direction."));
+assert.ok(!welcome.includes("Search sample opportunities"));
+assert.ok(!welcome.includes("Build something that matters."));
+const dashboard = await fetch(base + "/dashboard", { redirect: "manual" });
+assert.equal(dashboard.status, 307);
+assert.equal(new URL(dashboard.headers.get("location"), base).pathname, "/");
 const status = await fetch(base + "/api/status").then((r) => r.json());
 assert.ok(
   ["not-configured", "connected", "unavailable"].includes(status.database),
@@ -48,5 +57,5 @@ if (status.database === "not-configured") {
   assert.equal((await r.json()).code, "DATABASE_SETUP_REQUIRED");
 }
 console.log(
-  "PASS: status, unauthenticated account isolation, protected résumé endpoint, origin rejection, input validation, explicit missing-database response.",
+  "PASS: public welcome page, protected dashboard redirect, status, unauthenticated account isolation, protected résumé endpoint, origin rejection, input validation, explicit missing-database response.",
 );

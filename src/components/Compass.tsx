@@ -92,25 +92,24 @@ function Art({ o, className = "" }: { o: Opportunity; className?: string }) {
     />
   );
 }
-export default function Compass() {
+export default function Compass({ initialUser }: { initialUser: User }) {
   const [view, setView] = useState<View>("discover"),
     [category, setCategory] = useState<Category>("all"),
     [query, setQuery] = useState(""),
     [month, setMonth] = useState(""),
     [dateType, setDateType] = useState<"deadline" | "event">("deadline"),
     [format, setFormat] = useState("all");
-  const [user, setUser] = useState<User | null>(null),
+  const [user, setUser] = useState<User | null>(initialUser),
     [previewProfile, setPreviewProfile] = useState<Profile>(emptyProfile),
     [saved, setSaved] = useState<Saved[]>([]),
     [db, setDb] = useState("checking"),
-    [booted, setBooted] = useState(false),
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(""),
     [error, setError] = useState(""),
     [mobile, setMobile] = useState(false);
   const [auth, setAuth] = useState<"login" | "signup" | null>(null),
     [integration, setIntegration] = useState(false),
-    [onboarding, setOnboarding] = useState(false),
+    [onboarding, setOnboarding] = useState(!initialUser.profile.onboarded),
     [selected, setSelected] = useState<Opportunity | null>(null),
     [story, setStory] = useState<number | null>(null),
     [playing, setPlaying] = useState(false),
@@ -122,7 +121,7 @@ export default function Compass() {
     [password, setPassword] = useState(""),
     [name, setName] = useState("");
   const profile = user?.profile || previewProfile;
-  const [draft, setDraft] = useState<Profile>(emptyProfile);
+  const [draft, setDraft] = useState<Profile>(initialUser.profile);
   const [newField, setNewField] = useState(""),
     [newYears, setNewYears] = useState("");
   const fileRef = useRef<HTMLInputElement>(null),
@@ -161,30 +160,17 @@ export default function Compass() {
           const s = await api("saved");
           if (alive) setSaved(s.items);
         } else {
-          try {
-            setSaved(
-              JSON.parse(
-                sessionStorage.getItem("compass-preview-saved") || "[]",
-              ),
-            );
-          } catch {
-            setSaved([]);
-          }
+          setUser(null);
+          window.location.replace("/");
         }
       } catch {
         if (alive) setDb("unavailable");
-      } finally {
-        if (alive) setBooted(true);
       }
     })();
     return () => {
       alive = false;
     };
   }, []);
-  useEffect(() => {
-    if (booted && !user)
-      sessionStorage.setItem("compass-preview-saved", JSON.stringify(saved));
-  }, [saved, user, booted]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 4500);
@@ -416,8 +402,7 @@ export default function Compass() {
       setPreviewProfile(emptyProfile);
       setSaved([]);
       sessionStorage.removeItem("compass-preview-saved");
-      setView("discover");
-      setToast("Signed out.");
+      window.location.replace("/");
     } catch (e) {
       setToast((e as Error).message);
     }
@@ -620,6 +605,8 @@ export default function Compass() {
       )}
     </form>
   );
+  if (!user)
+    return <p className="session-redirect">Returning to the welcome page…</p>;
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobile ? "mobile-open" : ""}`}>
