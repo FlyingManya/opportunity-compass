@@ -74,6 +74,13 @@ export default function AgentPanel() {
   const importPanel = useRef<HTMLDivElement>(null);
   const priorFocus = useRef<HTMLElement | null>(null);
 
+  function closeImport() {
+    if (busy) return;
+    setImporting(false);
+    try {
+      sessionStorage.removeItem("compass-shared-draft");
+    } catch {}
+  }
   useEffect(() => {
     let active = true;
     request("state")
@@ -131,7 +138,7 @@ export default function AgentPanel() {
     document.body.style.overflow = "hidden";
     importPanel.current?.querySelector<HTMLInputElement>("input")?.focus();
     function key(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) setImporting(false);
+      if (event.key === "Escape" && !busy) closeImport();
       if (event.key !== "Tab") return;
       const nodes = importPanel.current?.querySelectorAll<HTMLElement>(
         "button:not(:disabled),input,textarea",
@@ -747,7 +754,7 @@ export default function AgentPanel() {
               className="icon-button agent-import-close"
               aria-label="Close link import"
               disabled={busy}
-              onClick={() => setImporting(false)}
+              onClick={closeImport}
             >
               <X size={21} />
             </button>
