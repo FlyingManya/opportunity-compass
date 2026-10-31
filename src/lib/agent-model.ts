@@ -10,10 +10,16 @@ import { publicLink } from "./shared-links";
 type Settings = { key: string; base: string; model: string; meta: boolean };
 function settings(): Settings | null {
   if (
-    process.env.AGENT_API_KEY &&
-    process.env.AGENT_BASE_URL &&
+    process.env.AGENT_API_KEY ||
+    process.env.AGENT_BASE_URL ||
     process.env.AGENT_MODEL
   ) {
+    if (
+      !process.env.AGENT_API_KEY ||
+      !process.env.AGENT_BASE_URL ||
+      !process.env.AGENT_MODEL
+    )
+      return null;
     const base = process.env.AGENT_BASE_URL.replace(/\/$/, "");
     try {
       const url = new URL(base);

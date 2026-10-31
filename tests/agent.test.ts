@@ -311,3 +311,77 @@ test("notes and shared links persist per account, duplicates update, and archive
     });
   }
 });
+
+test("model requests select the configured transport and do not expose keys in status", async () => {
+  const keys = [
+    "MODEL_API_KEY",
+    "AGENT_API_KEY",
+    "AGENT_BASE_URL",
+    "AGENT_MODEL",
+  ];
+  const previous = keys.map((key) => process.env[key]);
+  const original = globalThis.fetch;
+  const calls: { url: string; body: any }[] = [];
+  keys.forEach((key) => delete process.env[key]);
+  globalThis.fetch = (async (input, options) => {
+    const url = String(input);
+    calls.push({ url, body: JSON.parse(String(options?.body)) });
+    return Response.json(
+      url.endsWith("/responses")
+        ? {
+            output: [
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: "Meta response",
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+          }
+        : { choices: [{ message: { content: "Hosted response" } }] },
+    );
+  }) as typeof fetch;
+  try {
+    process.env.MODEL_API_KEY = "test-key-never-send";
+    assert.equal(
+      (await askAgent(emptyAgentPreferences, emptyProfile, [], []))?.content,
+      "Meta response",
+    );
+    assert.equal(calls[0].url, "https://api.meta.ai/v1/responses");
+    assert.equal(calls[0].body.tools[0].type, "web_search");
+    assert.equal(calls[0].body.store, false);
+    assert.ok(!JSON.stringify(agentMode()).includes("test-key"));
+    process.env.AGENT_API_KEY = "hosted-test-key";
+    assert.equal(
+      agentMode().connected,
+      false,
+      "Partial hosted setup must not silently charge the direct Meta key",
+    );
+    process.env.AGENT_BASE_URL = "https://models.example.org/v1";
+    process.env.AGENT_MODEL = "meta/muse-glimmer";
+    assert.equal(agentMode().search, false);
+    assert.equal(
+      (await askAgent(emptyAgentPreferences, emptyProfile, [], []))?.content,
+      "Hosted response",
+    );
+    assert.equal(
+      calls[1].url,
+      "https://models.example.org/v1/chat/completions",
+    );
+    assert.equal(calls[1].body.model, "meta/muse-glimmer");
+    assert.equal(calls[1].body.messages[0].role, "system");
+    assert.equal(calls[1].body.tools, undefined);
+    process.env.AGENT_BASE_URL = "broken";
+    assert.equal(agentMode().connected, false);
+  } finally {
+    globalThis.fetch = original;
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+  }
+});
