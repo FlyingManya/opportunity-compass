@@ -26,7 +26,7 @@ The installable app manifest registers `/share` as a URL/text share receiver on 
 
 ## Opportunity status
 
-On the Discover dashboard, **Update status** sends the title, organizer, and description of up to four current, source-backed opportunities at a time to Meta Muse Image. The server requests vertical artwork with no text, stores the generated WebP per account in MongoDB, and serves it only to the signed-in owner. The app overlays the current opportunity text and official link in a story viewer. Repeat the action to add more opportunities. This requires a server-side `MODEL_API_KEY` with access to `muse-image-1.0`; each image generation consumes Meta API credits. Image generation is not exercised by the automated tests, so verify it with a live key before relying on it for a demo.
+On the Discover dashboard, **Update status** sends the title, organizer, and description of up to four current, source-backed opportunities at a time to Meta Muse Image. The server requests vertical artwork with no text, stores the generated WebP per account in MongoDB, and serves it only to the signed-in owner. The app overlays the current opportunity text and official link in a story viewer. Repeat the action to add more opportunities. This requires a server-side `MODEL_API_KEY` with access to `muse-image-1.0`; each image generation consumes Meta API credits. If the key is absent or Meta responds with a billing, permission, or model-not-found error, the server saves a clearly labelled status using existing template artwork instead. Image generation is not exercised by the automated tests, so verify it with a live key before relying on Muse Image for a demo.
 
 ## Current boundaries
 

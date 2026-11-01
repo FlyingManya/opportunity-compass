@@ -78,7 +78,7 @@ async function statusOpportunity(
 
 async function generateStatusImage(prompt: string) {
   const key = process.env.MODEL_API_KEY;
-  if (!key) throw new Error("META_IMAGE_NOT_CONFIGURED");
+  if (!key) return null;
   const response = await fetch("https://api.meta.ai/v1/images/generations", {
     method: "POST",
     headers: {
@@ -99,6 +99,7 @@ async function generateStatusImage(prompt: string) {
     console.error("Muse Image status generation failed", {
       status: response.status,
     });
+    if ([402, 403, 404].includes(response.status)) return null;
     throw new Error("META_IMAGE_FAILED");
   }
   const result = await response.json();
@@ -127,7 +128,7 @@ export async function handleAgent(
     if (!/^[a-f0-9]{64}$/.test(id))
       return json({ error: "Image not found." }, 404);
     const image = await statusImages.findOne({ userId, id });
-    if (!image) return json({ error: "Image not found." }, 404);
+    if (!image?.data) return json({ error: "Image not found." }, 404);
     return new Response(new Uint8Array(image.data.buffer), {
       headers: {
         "Content-Type": "image/webp",
@@ -151,11 +152,6 @@ export async function handleAgent(
         { error: "This opportunity is no longer on your dashboard." },
         404,
       );
-    if (!process.env.MODEL_API_KEY)
-      return json(
-        { error: "Muse Image needs a Meta Model API key on the server." },
-        503,
-      );
     if (!(await allowed(db, userId, "status-image")))
       return json(
         { error: "Please wait before generating more status images." },
@@ -172,7 +168,8 @@ export async function handleAgent(
             userId,
             id,
             sourceUrl: body.sourceUrl,
-            data: new Binary(bytes),
+            data: bytes ? new Binary(bytes) : null,
+            fallback: !bytes,
             updatedAt: new Date(),
           },
         },
@@ -180,7 +177,11 @@ export async function handleAgent(
       );
       return json({
         id,
-        imageUrl: `/api/agent/status-image/${id}?v=${Date.now()}`,
+        imageUrl: bytes
+          ? `/api/agent/status-image/${id}?v=${Date.now()}`
+          : null,
+        statusReady: true,
+        fallback: !bytes,
       });
     } catch {
       return json(
@@ -240,21 +241,30 @@ export async function handleAgent(
           userId,
           id: { $in: opportunities.map((item) => statusId(item.sourceUrl)) },
         },
-        { projection: { _id: 0, id: 1, updatedAt: 1 } },
+        { projection: { _id: 0, id: 1, updatedAt: 1, fallback: 1 } },
       )
       .toArray();
-    const imageTimes = new Map(
-      images.map((image) => [image.id, new Date(image.updatedAt).getTime()]),
+    const imageStates = new Map(
+      images.map((image) => [
+        image.id,
+        {
+          version: new Date(image.updatedAt).getTime(),
+          fallback: !!image.fallback,
+        },
+      ]),
     );
     return json({
       opportunities: opportunities.map((item) => {
         const id = statusId(item.sourceUrl);
-        const version = imageTimes.get(id);
+        const state = imageStates.get(id);
         return {
           ...item,
-          statusImageUrl: version
-            ? `/api/agent/status-image/${id}?v=${version}`
-            : null,
+          statusImageUrl:
+            state && !state.fallback
+              ? `/api/agent/status-image/${id}?v=${state.version}`
+              : null,
+          statusReady: !!state,
+          statusFallback: !!state?.fallback,
         };
       }),
     });

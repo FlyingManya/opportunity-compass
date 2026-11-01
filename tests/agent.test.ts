@@ -329,6 +329,46 @@ test("generated status artwork is private to its owner", async () => {
     new Uint8Array([82, 73, 70, 70]),
   );
 });
+test("status remains viewable with labelled template artwork when Muse Image is unavailable", async () => {
+  const previous = process.env.MODEL_API_KEY;
+  const original = globalThis.fetch;
+  process.env.MODEL_API_KEY = "test-only";
+  globalThis.fetch = (async () =>
+    new Response("{}", { status: 404 })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    await db.collection("agent_preferences").insertOne({
+      userId: "alice",
+      preferences: { ...emptyAgentPreferences, brief: "women in tech" },
+    });
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/status-image",
+      "POST",
+      async () => ({
+        sourceUrl:
+          "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
+      }),
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.statusReady, true);
+    assert.equal(body.fallback, true);
+    assert.equal(body.imageUrl, null);
+    const rows = await db
+      .collection("opportunity_status_images")
+      .find({ userId: "alice" })
+      .toArray();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].fallback, true);
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = previous;
+  }
+});
 test("notes and shared links persist per account, duplicates update, and archive cannot affect another account", async () => {
   const keys = [
     "MODEL_API_KEY",
