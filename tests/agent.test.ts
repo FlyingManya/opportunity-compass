@@ -498,6 +498,24 @@ test("current curated lead appears only for interested accounts and expires", as
   };
   assert.equal(curatedForUser(interested, [], [], "2026-11-01").length, 1);
   assert.equal(curatedForUser(interested, [], [], "2026-11-14").length, 0);
+  assert.deepEqual(
+    curatedForUser(
+      { ...emptyAgentPreferences, brief: "AI hackathons" },
+      [],
+      [],
+      "2026-11-02",
+    ).map((item) => item.title),
+    ["PayPal AI Hackathon"],
+  );
+  assert.equal(
+    curatedForUser(
+      { ...emptyAgentPreferences, brief: "AI hackathons" },
+      [],
+      [],
+      "2026-11-13",
+    ).length,
+    0,
+  );
   assert.equal(
     curatedForUser(emptyAgentPreferences, [], [], "2026-11-01").length,
     0,

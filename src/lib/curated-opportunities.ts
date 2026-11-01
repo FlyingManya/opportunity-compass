@@ -26,6 +26,19 @@ const opportunities: CuratedOpportunity[] = [
     provenance: "curated",
   },
 ];
+const aiHackathons: CuratedOpportunity[] = [
+  {
+    sourceUrl: "https://paypalaihackathon.devpost.com/",
+    title: "PayPal AI Hackathon",
+    organizer: "PayPal · Devpost",
+    description:
+      "A global online hackathon for building an app or agent that meaningfully uses both PayPal and AI. The official Devpost page lists a 12 November 2026 deadline at 12:00 PM Pacific Standard Time. Check the full rules and country exceptions before joining.",
+    deadline: "2026-11-12",
+    reason:
+      "An open AI-building challenge for developers, designers, founders, and students.",
+    provenance: "curated",
+  },
+];
 
 export function curatedForUser(
   preferences: AgentPreferences,
@@ -44,6 +57,12 @@ export function curatedForUser(
   const wantsWomenInTech =
     /\b(women|woman|female|girls|wicys)\b/i.test(interests) ||
     /rewritingthecode\.org|ghc\.anitab\.org|womenhack\.com/i.test(interests);
-  if (!wantsWomenInTech) return [];
-  return opportunities.filter((item) => item.deadline >= today);
+  const wantsAiHackathon =
+    /\b(ai|artificial intelligence|machine learning|paypal)\b/i.test(
+      interests,
+    ) && /\b(hackathons?|competitions?|challenges?|paypal)\b/i.test(interests);
+  return [
+    ...(wantsWomenInTech ? opportunities : []),
+    ...(wantsAiHackathon ? aiHackathons : []),
+  ].filter((item) => item.deadline >= today);
 }
