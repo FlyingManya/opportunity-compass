@@ -20,6 +20,8 @@ type Discovery = {
   reason: string;
   provenance?: "curated";
   statusImageUrl?: string | null;
+  statusReady?: boolean;
+  statusFallback?: boolean;
 };
 
 function cardAppearance(item: Discovery) {
@@ -75,7 +77,7 @@ export default function DiscoveryFeed() {
       window.removeEventListener("focus", refresh);
     };
   }, []);
-  const statuses = items.filter((item) => item.statusImageUrl);
+  const statuses = items.filter((item) => item.statusReady);
   const currentStatus = statusIndex === null ? null : statuses[statusIndex];
   const currentIndex = statusIndex ?? 0;
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function DiscoveryFeed() {
     setProgress(0);
     setStatusError("");
     let completed = 0;
-    const missing = items.filter((item) => !item.statusImageUrl);
+    const missing = items.filter((item) => !item.statusReady);
     const targets = (missing.length ? missing : items).slice(0, 4);
     setTargetTotal(targets.length);
     const outcomes = await Promise.allSettled(
@@ -121,11 +123,16 @@ export default function DiscoveryFeed() {
           setItems((current) =>
             current.map((entry) =>
               entry.sourceUrl === item.sourceUrl
-                ? { ...entry, statusImageUrl: body.imageUrl }
+                ? {
+                    ...entry,
+                    statusImageUrl: body.imageUrl,
+                    statusReady: true,
+                    statusFallback: !!body.fallback,
+                  }
                 : entry,
             ),
           );
-          return true;
+          return !!body.fallback;
         } finally {
           completed++;
           setProgress(completed);
@@ -143,6 +150,14 @@ export default function DiscoveryFeed() {
           : "Some images could not be created.",
       );
     }
+    if (
+      outcomes.some(
+        (outcome) => outcome.status === "fulfilled" && outcome.value,
+      )
+    )
+      setStatusError(
+        "Muse Image is unavailable for this Meta account. Statuses use clearly labelled template artwork for now.",
+      );
     if (outcomes.some((outcome) => outcome.status === "fulfilled"))
       setStatusIndex(0);
     setUpdating(false);
@@ -190,7 +205,8 @@ export default function DiscoveryFeed() {
       {!!items.length && (
         <p className="status-helper">
           Update status creates illustrated stories for up to four current
-          opportunities at a time with Muse Image. Click again to add more. Your
+          opportunities at a time with Muse Image. Click again to add more. If
+          Meta is unavailable, the stories use template artwork and say so. Your
           opportunity details stay as text over the artwork.
         </p>
       )}
@@ -302,10 +318,21 @@ export default function DiscoveryFeed() {
             <ChevronLeft size={25} />
           </button>
           <article className="generated-status-card">
-            <img
-              src={currentStatus.statusImageUrl!}
-              alt="Muse Image illustration for this opportunity"
-            />
+            {currentStatus.statusImageUrl ? (
+              <img
+                src={currentStatus.statusImageUrl}
+                alt="Muse Image illustration for this opportunity"
+              />
+            ) : (
+              <div
+                role="img"
+                aria-label="Template illustration for this opportunity"
+                className="op-art generated-status-template"
+                style={{
+                  backgroundPosition: `${cardAppearance(currentStatus).art % 2 ? 100 : 0}% ${cardAppearance(currentStatus).art > 1 ? 100 : 0}%`,
+                }}
+              />
+            )}
             <div className="generated-status-shade" />
             <div className="generated-status-progress">
               {statuses.map((item, index) => (
@@ -316,7 +343,8 @@ export default function DiscoveryFeed() {
               ))}
             </div>
             <div className="generated-status-brand">
-              <Sparkles size={17} /> Opportunity Compass · Muse Image
+              <Sparkles size={17} /> Opportunity Compass ·{" "}
+              {currentStatus.statusFallback ? "Template artwork" : "Muse Image"}
             </div>
             <div className="generated-status-copy">
               <span className="generated-status-label">
