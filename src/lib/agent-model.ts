@@ -344,7 +344,9 @@ export async function askAgent(
             }
           : config.provider === "meta"
             ? {
-                model: config.model,
+                model: discover
+                  ? process.env.META_DISCOVERY_MODEL || "muse-wonder-1.0"
+                  : config.model,
                 instructions,
                 input: metaInput,
                 tools: [
