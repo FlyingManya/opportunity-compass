@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
+import type { Binary } from "mongodb";
 import type { Profile } from "./types";
 import {
   emptyAgentPreferences,
@@ -15,7 +16,7 @@ import {
   platformFor,
   socialPreview,
 } from "./shared-links";
-import { agentMode, askAgent } from "./agent-model";
+import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -42,6 +43,24 @@ export async function handleAgent(
   const messages = db.collection("agent_messages");
   const leads = db.collection("shared_leads");
   const briefs = db.collection("agent_preferences");
+  const discoveries = db.collection("discovered_opportunities");
+  if (path === "agent/discoveries" && method === "GET") {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: profile.timezone || "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const rows = await discoveries
+      .find(
+        { userId, deadline: { $gte: today } },
+        { projection: { _id: 0, userId: 0 } },
+      )
+      .sort({ deadline: 1 })
+      .limit(30)
+      .toArray();
+    return json({ opportunities: rows });
+  }
   if (path === "agent/state" && method === "GET") {
     const [recent, imports, settings] = await Promise.all([
       messages
@@ -97,7 +116,7 @@ export async function handleAgent(
         sent,
         reply: null,
         notice:
-          "Your note is saved privately. AI replies will be available once a Meta model is connected.",
+          "Your note is saved privately. AI replies will be available once a model is connected.",
       });
     try {
       const [settings, recent, imports] = await Promise.all([
@@ -116,13 +135,95 @@ export async function handleAgent(
           .limit(8)
           .toArray(),
       ]);
+      const discover =
+        agentMode().label === "Claude" && isDiscoveryRequest(message);
       const result = await askAgent(
         (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
         profile,
         imports as unknown as SharedLead[],
         recent.reverse() as unknown as AgentMessage[],
+        settings?.preferences?.useResume
+          ? await db
+              .collection<{ userId: string; type: string; data: Binary }>(
+                "resumes",
+              )
+              .findOne({ userId })
+          : null,
+        discover,
       );
       if (!result) throw new Error("NO_MODEL");
+      if (discover) {
+        const raw = result.content.replace(/^```(?:json)?\s*|\s*```$/g, "");
+        let parsed: { opportunities?: unknown } = {};
+        try {
+          parsed = JSON.parse(
+            raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1),
+          );
+        } catch {
+          // A malformed model response cannot create dashboard entries.
+        }
+        const today = new Intl.DateTimeFormat("en-CA", {
+          timeZone: profile.timezone || "Asia/Kolkata",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+        const items = Array.isArray(parsed.opportunities)
+          ? parsed.opportunities.slice(0, 4)
+          : [];
+        let added = 0;
+        for (const item of items) {
+          if (
+            typeof item.title !== "string" ||
+            typeof item.organizer !== "string" ||
+            typeof item.description !== "string" ||
+            typeof item.deadline !== "string" ||
+            typeof item.sourceUrl !== "string" ||
+            typeof item.reason !== "string"
+          )
+            continue;
+          if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(item.deadline) ||
+            !Number.isFinite(Date.parse(item.deadline)) ||
+            new Date(item.deadline).toISOString().slice(0, 10) !==
+              item.deadline ||
+            item.deadline < today
+          )
+            continue;
+          const url = publicLink(item.sourceUrl);
+          if (!url || !result.sources.some((source) => source.url === url))
+            continue;
+          await discoveries.updateOne(
+            { userId, sourceUrl: url },
+            {
+              $set: {
+                userId,
+                sourceUrl: url,
+                title: item.title.slice(0, 180),
+                organizer: item.organizer.slice(0, 180),
+                description: item.description.slice(0, 600),
+                deadline: item.deadline,
+                reason: item.reason.slice(0, 300),
+                discoveredAt: new Date().toISOString(),
+                status: "AI-researched; confirm on official page",
+              },
+            },
+            { upsert: true },
+          );
+          added++;
+        }
+        const reply: AgentMessage = {
+          id: randomUUID(),
+          role: "assistant",
+          content: added
+            ? `I added ${added} opportunity${added === 1 ? "" : "ies"} matching your request to your Discover dashboard. Please check each official page before applying.`
+            : "I couldn't confirm any currently open opportunities with an official source and a future deadline, so I didn't add any to your dashboard. Try another category or location.",
+          createdAt: new Date().toISOString(),
+          sources: [],
+        };
+        await messages.insertOne({ ...reply, userId });
+        return json({ sent, reply, added });
+      }
       const reply: AgentMessage = {
         id: randomUUID(),
         role: "assistant",

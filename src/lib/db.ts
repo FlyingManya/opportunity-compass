@@ -37,6 +37,9 @@ export async function database() {
             .createIndex({ userId: 1, opportunityId: 1 }, { unique: true }),
           db.collection("resumes").createIndex({ userId: 1 }, { unique: true }),
           db
+            .collection("discovered_opportunities")
+            .createIndex({ userId: 1, sourceUrl: 1 }, { unique: true }),
+          db
             .collection("rate_limits")
             .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
         ]);

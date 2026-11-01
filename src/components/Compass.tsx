@@ -1,5 +1,6 @@
 "use client";
 import AgentPanel from "./AgentPanel";
+import DiscoveryFeed from "./DiscoveryFeed";
 import { useState, useEffect, useRef } from "react";
 import {
   MessageCircle,
@@ -1083,12 +1084,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   {profile.onboarded ? "Profile relevance" : "Explore all"}
                 </span>
               </div>
+              <DiscoveryFeed />
               <div className="sample-note">
                 <span className="sample-dot" />
                 <p>
                   <strong>A preview of what’s possible.</strong> These{" "}
-                  {catalog.length} opportunities are fictional samples. Live web
-                  discovery will be connected in the next stage.
+                  {catalog.length} opportunities below are fictional samples.
                 </p>
               </div>
               {results.length ? (
