@@ -735,11 +735,7 @@ test("Meta discovery tries Spark once if Wonder is unavailable", async () => {
       true,
     );
     assert.equal(result?.content, '{"opportunities":[]}');
-    assert.deepEqual(models, [
-      "muse-wonder-1.0",
-      "muse-wonder-1.0",
-      "muse-spark-1.3",
-    ]);
+    assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
   } finally {
     globalThis.fetch = original;
     if (previous.provider === undefined) delete process.env.AGENT_PROVIDER;
