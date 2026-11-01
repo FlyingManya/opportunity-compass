@@ -205,7 +205,11 @@ export async function askAgent(
   history: AgentMessage[],
   resume?: { type: string; data: Binary } | null,
   discover = false,
-) {
+  metaModelOverride?: string,
+): Promise<{
+  content: string;
+  sources: { title: string; url: string }[];
+} | null> {
   const config = settings();
   if (!config) return null;
   let instructions = agentInstructions(
@@ -345,7 +349,9 @@ export async function askAgent(
           : config.provider === "meta"
             ? {
                 model: discover
-                  ? process.env.META_DISCOVERY_MODEL || "muse-wonder-1.0"
+                  ? metaModelOverride ||
+                    process.env.META_DISCOVERY_MODEL ||
+                    "muse-wonder-1.0"
                   : config.model,
                 instructions,
                 input: metaInput,
@@ -380,6 +386,22 @@ export async function askAgent(
       status: response.status,
       type: errorBody?.error?.type || "unknown",
     });
+    if (
+      config.provider === "meta" &&
+      discover &&
+      response.status === 404 &&
+      !metaModelOverride &&
+      config.model !== (process.env.META_DISCOVERY_MODEL || "muse-wonder-1.0")
+    )
+      return askAgent(
+        preferences,
+        profile,
+        leads,
+        history,
+        resume,
+        discover,
+        config.model,
+      );
     throw new Error("MODEL_UNAVAILABLE");
   }
   const body = await response.json();
