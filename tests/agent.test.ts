@@ -491,8 +491,10 @@ test("model requests select the configured transport and do not expose keys in s
       privateResume,
       true,
     );
-    assert.equal(calls[4].body.input.length, 1);
-    assert.equal(calls[4].body.input[0].content, "Find opportunities");
+    assert.equal(calls[4].url, "https://api.meta.ai/v1/messages");
+    assert.equal(calls[4].body.messages.length, 1);
+    assert.equal(calls[4].body.messages[0].content, "Find opportunities");
+    assert.equal(calls[4].body.tool_choice.type, "any");
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
     await askAgent(
@@ -508,9 +510,27 @@ test("model requests select the configured transport and do not expose keys in s
       privateResume,
       true,
     );
-    assert.equal(calls[5].body.input[1].content[1].type, "input_file");
-    assert.ok(calls[5].body.instructions.includes("Engineer"));
-    assert.ok(calls[5].body.instructions.includes("DISCOVERY TASK"));
+    assert.equal(calls[5].body.messages[1].content[0].type, "document");
+    assert.ok(calls[5].body.system.includes("Engineer"));
+    assert.ok(calls[5].body.system.includes("DISCOVERY TASK"));
+    await askAgent(
+      emptyAgentPreferences,
+      emptyProfile,
+      [],
+      [
+        {
+          id: "women-search",
+          role: "user",
+          content: "Find women in tech hackathons",
+          createdAt: "2026-11-01T00:00:00Z",
+        },
+      ],
+      null,
+      true,
+    );
+    assert.ok(calls[6].body.system.includes("https://devpost.com/hackathons"));
+    assert.ok(calls[6].body.system.includes("https://womenhack.com/events/"));
+    assert.ok(!calls[6].body.system.includes("Private prior chat"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {
@@ -562,7 +582,7 @@ test("discovery saves only cited opportunities with future deadlines for the cur
             {
               type: "web_search_result_location",
               title: "Official",
-              url: "https://official.example.org/apply",
+              url: "https://official.example.org/apply/?utm_source=search",
             },
           ],
         },

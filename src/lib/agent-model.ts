@@ -6,6 +6,7 @@ import type {
 } from "./agent-types";
 import type { Profile } from "./types";
 import { publicLink } from "./shared-links";
+import { sourceExamples } from "./source-examples";
 import type { Binary } from "mongodb";
 
 type Settings = {
@@ -173,7 +174,8 @@ export function parseClaudeReply(body: Record<string, any>) {
     )
     .filter(
       (citation: any) =>
-        citation.type === "web_search_result_location" &&
+        (citation.type === "web_search_result_location" ||
+          citation.type === "url_citation") &&
         typeof citation.url === "string" &&
         publicLink(citation.url),
     )
@@ -230,6 +232,12 @@ export async function askAgent(
         true,
       ) + (discover ? discoveryInstructions : "");
   }
+  if (
+    discover &&
+    /\b(women|woman|female|girls?)\b/i.test(history.at(-1)?.content || "")
+  ) {
+    instructions += `\nPublic starting sites for women-in-tech searches: ${sourceExamples.map(({ name, url }) => `${name}: ${url}`).join("; ")}. Search for current individual listings on these and other official organizer sites. A directory or event calendar is a lead, not proof that an application is open. WomenHack is a hiring-event platform, not a hackathon platform; GHC scholarships may be closed. Broaden to relevant competitions and events only when the latest request allows them.`;
+  }
   const messages = (
     config.provider === "meta" && !preferences.useMetaContext
       ? history.slice(-1)
@@ -266,6 +274,7 @@ export async function askAgent(
     }
   }
   let metaInput: unknown = messages;
+  let metaSearchMessages: unknown = messages;
   if (
     config.provider === "meta" &&
     preferences.useMetaContext &&
@@ -296,12 +305,32 @@ export async function askAgent(
             }
           : entry,
       );
+      metaSearchMessages = messages.map((entry, index) =>
+        index === messages.length - 1 && entry.role === "user"
+          ? {
+              role: "user",
+              content: [
+                {
+                  type: "document",
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: bytes.toString("base64"),
+                  },
+                },
+                { type: "text", text: entry.content },
+              ],
+            }
+          : entry,
+      );
     }
   }
   const response = await fetch(
     config.base +
       (config.provider === "meta"
-        ? "/responses"
+        ? discover
+          ? "/messages"
+          : "/responses"
         : config.provider === "claude"
           ? "/messages"
           : "/chat/completions"),
@@ -334,31 +363,41 @@ export async function askAgent(
                 },
               ],
             }
-          : config.provider === "meta"
+          : config.provider === "meta" && discover
             ? {
                 model: config.model,
-                instructions,
-                input: metaInput,
+                max_tokens: 3000,
+                system: instructions,
+                messages: metaSearchMessages,
                 tools: [{ type: "web_search" }],
-                reasoning: { effort: "low" },
-                max_output_tokens: 3000,
-                store: false,
+                tool_choice: { type: "any" },
               }
-            : {
-                model: config.model,
-                messages: [
-                  { role: "system", content: instructions },
-                  ...messages,
-                ],
-                max_tokens: 1800,
-              },
+            : config.provider === "meta"
+              ? {
+                  model: config.model,
+                  instructions,
+                  input: metaInput,
+                  tools: [{ type: "web_search" }],
+                  reasoning: { effort: "low" },
+                  max_output_tokens: 3000,
+                  store: false,
+                }
+              : {
+                  model: config.model,
+                  messages: [
+                    { role: "system", content: instructions },
+                    ...messages,
+                  ],
+                  max_tokens: 1800,
+                },
       ),
       signal: AbortSignal.timeout(35000),
     },
   );
   if (!response.ok) throw new Error("MODEL_UNAVAILABLE");
   const body = await response.json();
-  return config.provider === "claude"
+  return config.provider === "claude" ||
+    (config.provider === "meta" && discover)
     ? parseClaudeReply(body)
     : parseAgentReply(body, config.provider === "meta");
 }

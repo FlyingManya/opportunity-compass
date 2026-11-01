@@ -322,6 +322,47 @@
   color: #9c8baa;
   font-weight: 400;
 }
+.agent-source-examples {
+  margin: -4px 0 24px;
+  padding: 16px;
+  border: 1px solid #e8e2ee;
+  border-radius: 14px;
+  background: #fbf8fd;
+}
+.agent-source-examples > strong {
+  display: block;
+  color: #5b446c;
+  font-size: 15px;
+}
+.agent-source-examples p {
+  margin: 5px 0 13px;
+  color: #7c6b89;
+  font-size: 14px;
+}
+.agent-source-examples > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 11px;
+}
+.agent-source-examples button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid #d9cce5;
+  border-radius: 999px;
+  background: #fff;
+  color: #604775;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.agent-source-examples button:hover {
+  border-color: #9b78bd;
+  background: #f5edf9;
+}
 .agent-brief .agent-profile-consent {
   display: flex;
   gap: 12px;

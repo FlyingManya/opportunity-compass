@@ -20,6 +20,13 @@ import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+function sameSource(left: string, right: string) {
+  const canonical = (value: string) => {
+    const url = new URL(value);
+    return `${url.hostname.replace(/^www\./, "")}${url.pathname.replace(/\/$/, "")}`;
+  };
+  return canonical(left) === canonical(right);
+}
 async function allowed(db: Db, userId: string, action: string) {
   const bucket = Math.floor(Date.now() / 900000);
   const record = await db.collection("rate_limits").findOneAndUpdate(
@@ -190,7 +197,10 @@ export async function handleAgent(
           )
             continue;
           const url = publicLink(item.sourceUrl);
-          if (!url || !result.sources.some((source) => source.url === url))
+          if (
+            !url ||
+            !result.sources.some((source) => sameSource(source.url, url))
+          )
             continue;
           await discoveries.updateOne(
             { userId, sourceUrl: url },
@@ -216,7 +226,7 @@ export async function handleAgent(
           role: "assistant",
           content: added
             ? `I added ${added} opportunity${added === 1 ? "" : "ies"} matching your request to your Discover dashboard. Please check each official page before applying.`
-            : "I couldn't confirm any currently open opportunities with an official source and a future deadline, so I didn't add any to your dashboard. Try another category or location.",
+            : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
           createdAt: new Date().toISOString(),
           sources: [],
         };

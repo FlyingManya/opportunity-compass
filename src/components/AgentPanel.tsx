@@ -23,6 +23,7 @@ import type {
   SharedLead,
 } from "@/lib/agent-types";
 import { emptyAgentPreferences } from "@/lib/agent-types";
+import { sourceExamples } from "@/lib/source-examples";
 import "./agent.css";
 
 type Draft = { url: string; title: string; caption: string };
@@ -543,10 +544,37 @@ export default function AgentPanel() {
                   }
                 />
                 <small>
-                  One HTTPS link per line, up to 15. These guide research when
-                  live search is available.
+                  One HTTPS link per line, up to 15. For Meta AI, your saved
+                  sites guide research when “Use my saved context” is enabled.
                 </small>
               </label>
+              <div className="agent-source-examples">
+                <strong>Suggested places to look</strong>
+                <p>
+                  These are starting points, not confirmed open applications.
+                </p>
+                <div>
+                  {sourceExamples.map(({ name, url }) => (
+                    <button
+                      type="button"
+                      key={url}
+                      onClick={() =>
+                        setSources((current) =>
+                          current.split("\n").includes(url)
+                            ? current
+                            : [current.trim(), url].filter(Boolean).join("\n"),
+                        )
+                      }
+                    >
+                      <Plus size={14} /> {name}
+                    </button>
+                  ))}
+                </div>
+                <small>
+                  Choose a site, then save your brief. Check each site's current
+                  eligibility and dates.
+                </small>
+              </div>
               <label className="agent-profile-consent">
                 <input
                   type="checkbox"
