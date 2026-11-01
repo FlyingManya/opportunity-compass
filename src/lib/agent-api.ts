@@ -189,13 +189,6 @@ async function generateCardImage(opportunity: {
         model: "muse-image-1.0",
         input: prompt,
         store: false,
-        tools: [
-          {
-            type: "image_generation",
-            size: "1536x1024",
-            output_format: "webp",
-          },
-        ],
       }),
       signal: AbortSignal.timeout(remaining),
     });
@@ -274,7 +267,7 @@ export async function handleAgent(
     if (existing?.data)
       return json({ imageUrl: `/api/agent/card-image/${id}` });
     if (
-      existing?.version === 3 &&
+      existing?.version === 4 &&
       existing?.attemptedAt &&
       Date.now() - new Date(existing.attemptedAt).getTime() < 86400000
     )
@@ -297,7 +290,7 @@ export async function handleAgent(
             sourceUrl: body.sourceUrl,
             data: bytes ? new Binary(bytes) : null,
             attemptedAt: new Date(),
-            version: 3,
+            version: 4,
           },
         },
         { upsert: true },
