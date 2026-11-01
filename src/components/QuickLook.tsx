@@ -51,6 +51,9 @@ export default function QuickLook({
         <h3>Inspired by your interests.</h3>
       </div>
       <div className="story-circles">
+        {!topics.length && (
+          <p>Add your interests in My profile to see ideas chosen for you.</p>
+        )}
         {topics.map((item, index) => (
           <button
             key={item.label}

@@ -53,14 +53,18 @@ export function quickLookFallback(
     add("Pottery workshops", "Craft classes");
   for (const interest of profile.interests) {
     const label = interest.trim().replace(/\s+/g, " ").slice(0, 32);
+    const suggested =
+      /opportunit|event|hackathon|competition|fellowship|research|workshop|class/i.test(
+        label,
+      )
+        ? label
+        : `${label} opportunities`;
     if (
       label &&
       !labels.some((item) => item.toLowerCase().includes(label.toLowerCase()))
     )
-      add(`${label} opportunities`);
+      add(suggested);
   }
-  if (!labels.length)
-    add("Hackathons", "Fellowships", "Research programs", "Local events");
   return labels.slice(0, 6).map(topic);
 }
 

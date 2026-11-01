@@ -164,6 +164,8 @@ export async function handleAgent(
         ? Buffer.from(resume.data.buffer).toString("utf8").slice(0, 4000)
         : "";
     const fallback = quickLookFallback(profile, preferences?.brief, resumeText);
+    const hasSignals =
+      !!fallback.length || (!!resume && !!preferences?.useResume);
     const signature = tokenHash(
       JSON.stringify({
         profession: profile.profession,
@@ -183,11 +185,16 @@ export async function handleAgent(
         topics: saved?.signature === signature ? saved.topics : fallback,
         stale:
           saved?.signature !== signature &&
+          hasSignals &&
           !!preferences?.useMetaContext &&
           !!process.env.MODEL_API_KEY,
       });
     if (saved?.signature === signature) return json({ topics: saved.topics });
-    if (!preferences?.useMetaContext || !process.env.MODEL_API_KEY)
+    if (
+      !hasSignals ||
+      !preferences?.useMetaContext ||
+      !process.env.MODEL_API_KEY
+    )
       return json({ topics: fallback });
     if (!(await allowed(db, userId, "quick-look")))
       return json({ topics: fallback });
