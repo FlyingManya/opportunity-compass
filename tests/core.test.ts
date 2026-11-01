@@ -108,6 +108,20 @@ test("filtering respects category, text, month, and event vs deadline", () => {
     0,
   );
 });
+test("competitions and events includes more than women in tech", () => {
+  const results = filterCatalog(
+    catalog,
+    "women-tech",
+    "",
+    "",
+    "deadline",
+    emptyProfile,
+  );
+  assert.ok(results.some((item) => item.id === "sample-build-weekend"));
+  assert.ok(results.some((item) => item.id === "sample-tech-community"));
+  assert.ok(results.some((item) => item.id === "sample-pottery"));
+  assert.ok(!results.some((item) => item.id === "sample-frontend"));
+});
 test("matching identifies skill evidence and age incompatibility without certainty claims", () => {
   assert.deepEqual(
     relevance(catalog[0], { ...emptyProfile, skills: ["Python"] }).matches,

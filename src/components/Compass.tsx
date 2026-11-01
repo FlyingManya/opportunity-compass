@@ -25,6 +25,7 @@ import {
   BriefcaseBusiness,
   Code2,
   HeartHandshake,
+  Trophy,
   Palette,
   LogOut,
   Database,
@@ -63,7 +64,7 @@ const categoryIcons = {
   all: Sparkles,
   jobs: BriefcaseBusiness,
   hackathons: Code2,
-  "women-tech": HeartHandshake,
+  "women-tech": Trophy,
   custom: Palette,
 };
 async function api(path: string, method = "GET", data?: unknown) {

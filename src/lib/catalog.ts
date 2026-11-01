@@ -9,7 +9,7 @@ export const categoryLabels: Record<Category, string> = {
   all: "For you",
   jobs: "Jobs & internships",
   hackathons: "Hackathons",
-  "women-tech": "Women in tech",
+  "women-tech": "Competitions & events",
   custom: "Explore something new",
 };
 export const catalog: Opportunity[] = [
@@ -48,7 +48,7 @@ export const catalog: Opportunity[] = [
     id: "sample-fellowship",
     title: "Your next chapter in tech.",
     organizer: "Her Next Chapter · Sample organizer",
-    category: "women-tech",
+    category: "custom",
     kind: "Fellowship",
     description:
       "A mentorship-led fellowship for women exploring technology leadership, community, and their next professional chapter.",
@@ -301,7 +301,12 @@ export function filterCatalog(
   return items
     .filter(
       (o) =>
-        (category === "all" || o.category === category) &&
+        (category === "all" ||
+          (category === "women-tech"
+            ? o.category === "women-tech" ||
+              o.category === "hackathons" ||
+              /competition|challenge|workshop|event/i.test(o.kind)
+            : o.category === category)) &&
         (!q ||
           `${o.title} ${o.description} ${o.kind} ${o.location} ${o.tags.join(" ")}`
             .toLowerCase()
