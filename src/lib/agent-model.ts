@@ -403,6 +403,40 @@ export async function askAgent(
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     const error = errorBody?.error;
+    if (
+      config.provider === "meta" &&
+      discover &&
+      response.status === 404 &&
+      !metaModelOverride &&
+      process.env.META_DISCOVERY_MODEL === "muse-wonder-1.0"
+    ) {
+      try {
+        const probe = await fetch("https://api.meta.ai/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "muse-wonder-1.0",
+            input: "Reply with exactly: Muse Wonder is working.",
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const probeBody = probe.ok
+          ? null
+          : await probe.json().catch(() => null);
+        console.info("Muse Wonder minimal request diagnostic", {
+          status: probe.status,
+          code: probeBody?.error?.code || undefined,
+          requestId: probe.headers.get("x-request-id") || undefined,
+        });
+      } catch (probeError) {
+        console.info("Muse Wonder minimal request diagnostic", {
+          error: probeError instanceof Error ? probeError.name : "unknown",
+        });
+      }
+    }
     console.error("Opportunity model request failed", {
       provider: config.provider,
       discover,
