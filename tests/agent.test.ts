@@ -18,6 +18,7 @@ import {
   isDiscoveryRequest,
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
+import { curatedForUser } from "../src/lib/curated-opportunities";
 import { emptyProfile } from "../src/lib/types";
 import {
   emptyAgentPreferences,
@@ -349,6 +350,42 @@ test("notes and shared links persist per account, duplicates update, and archive
       else process.env[key] = previous[index];
     });
   }
+});
+
+test("current curated lead appears only for interested accounts and expires", async () => {
+  const interested = {
+    ...emptyAgentPreferences,
+    sources: ["https://womenhack.com/events/"],
+  };
+  assert.equal(curatedForUser(interested, [], [], "2026-11-01").length, 1);
+  assert.equal(curatedForUser(interested, [], [], "2026-11-14").length, 0);
+  assert.equal(
+    curatedForUser(emptyAgentPreferences, [], [], "2026-11-01").length,
+    0,
+  );
+  const db = memoryDatabase();
+  await db.collection("agent_preferences").insertOne({
+    userId: "alice",
+    preferences: interested,
+  });
+  const forAlice = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/discoveries",
+    "GET",
+    async () => null,
+  );
+  const forBob = await handleAgent(
+    db,
+    "bob",
+    emptyProfile,
+    "agent/discoveries",
+    "GET",
+    async () => null,
+  );
+  assert.equal((await forAlice.json()).opportunities[0].provenance, "curated");
+  assert.equal((await forBob.json()).opportunities.length, 0);
 });
 
 test("model requests select the configured transport and do not expose keys in status", async () => {

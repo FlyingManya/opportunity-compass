@@ -18,6 +18,7 @@ import {
 } from "./shared-links";
 import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
+import { curatedForUser } from "./curated-opportunities";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 function sameSource(left: string, right: string) {
@@ -64,15 +65,43 @@ export async function handleAgent(
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
-    const rows = await discoveries
-      .find(
-        { userId, deadline: { $gte: today } },
-        { projection: { _id: 0, userId: 0 } },
-      )
-      .sort({ deadline: 1 })
-      .limit(30)
-      .toArray();
-    return json({ opportunities: rows });
+    const [rows, saved, recent, shared] = await Promise.all([
+      discoveries
+        .find(
+          { userId, deadline: { $gte: today } },
+          { projection: { _id: 0, userId: 0 } },
+        )
+        .sort({ deadline: 1 })
+        .limit(30)
+        .toArray(),
+      briefs.findOne({ userId }, { projection: { _id: 0, userId: 0 } }),
+      messages
+        .find({ userId }, { projection: { _id: 0, userId: 0 } })
+        .sort({ createdAt: -1 })
+        .limit(12)
+        .toArray(),
+      leads
+        .find(
+          { userId, archived: false },
+          { projection: { _id: 0, userId: 0 } },
+        )
+        .sort({ createdAt: -1 })
+        .limit(12)
+        .toArray(),
+    ]);
+    const curated = curatedForUser(
+      (saved?.preferences || emptyAgentPreferences) as AgentPreferences,
+      recent as unknown as AgentMessage[],
+      shared as unknown as SharedLead[],
+      today,
+    );
+    const seen = new Set(rows.map((item) => item.sourceUrl));
+    return json({
+      opportunities: [
+        ...rows,
+        ...curated.filter((item) => !seen.has(item.sourceUrl)),
+      ].sort((left, right) => left.deadline.localeCompare(right.deadline)),
+    });
   }
   if (path === "agent/state" && method === "GET") {
     const [recent, imports, settings] = await Promise.all([

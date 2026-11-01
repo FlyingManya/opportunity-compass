@@ -8,6 +8,7 @@ type Discovery = {
   description: string;
   deadline: string;
   reason: string;
+  provenance?: "curated";
 };
 
 export default function DiscoveryFeed() {
@@ -46,7 +47,11 @@ export default function DiscoveryFeed() {
         <div className="discovery-feed-grid">
           {items.map((item) => (
             <article key={item.sourceUrl} className="discovery-feed-card">
-              <span>RESEARCHED OPPORTUNITY</span>
+              <span>
+                {item.provenance === "curated"
+                  ? "OFFICIAL SOURCE · CURATED LEAD"
+                  : "AI RESEARCHED OPPORTUNITY"}
+              </span>
               <h3>{item.title}</h3>
               <p>{item.organizer}</p>
               <p>{item.description}</p>
