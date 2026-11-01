@@ -472,6 +472,57 @@ test("opportunity images are account-scoped and cached without another Meta call
     200,
   );
 });
+test("Muse Image card falls back to the Responses API when generation endpoint lacks the model", async () => {
+  const original = globalThis.fetch;
+  const previous = process.env.MODEL_API_KEY;
+  process.env.MODEL_API_KEY = "test-only";
+  const endpoints: string[] = [];
+  globalThis.fetch = (async (url) => {
+    endpoints.push(String(url));
+    if (String(url).endsWith("/images/generations"))
+      return Response.json(
+        { error: { message: "The requested model was not found." } },
+        { status: 404 },
+      );
+    return Response.json({
+      output: [
+        {
+          type: "image_generation_call",
+          result: Buffer.from([82, 73, 70, 70]).toString("base64"),
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    const sourceUrl = "https://official.example.org/ai-hackathon";
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl,
+      title: "AI Hackathon",
+      organizer: "Official organizer",
+      description: "Build AI projects",
+      deadline: "2099-12-31",
+    });
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/card-image",
+      "POST",
+      async () => ({ sourceUrl }),
+    );
+    assert.ok((await response.json()).imageUrl);
+    assert.deepEqual(endpoints, [
+      "https://api.meta.ai/v1/images/generations",
+      "https://api.meta.ai/v1/responses",
+    ]);
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = previous;
+  }
+});
 test("generated status artwork is private to its owner", async () => {
   const db = memoryDatabase();
   const id = "a".repeat(64);

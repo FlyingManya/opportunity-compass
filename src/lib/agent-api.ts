@@ -143,12 +143,14 @@ async function generateCardImage(opportunity: {
   const key = process.env.MODEL_API_KEY;
   if (!key) return null;
   const prompt = `Create a polished, landscape editorial image for this specific opportunity card. Opportunity: ${String(opportunity.title).slice(0, 180)}. Organizer: ${String(opportunity.organizer).slice(0, 180)}. Official source URL: ${String(opportunity.sourceUrl).slice(0, 400)}. Description: ${String(opportunity.description).slice(0, 500)}. Use web and image search to check the organizer's official visual identity and the event context before drawing. Make the scene distinctly relevant to this event and organizer, with a clean central subject and rich variation across different opportunities. Include a logo only if you can verify its genuine design from the official source; otherwise omit it. No invented dates, prices, claims, UI, watermarks, or text. This is an illustration, not an official event poster.`;
+  const startedAt = Date.now();
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+  };
   const response = await fetch("https://api.meta.ai/v1/images/generations", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       model: "muse-image-1.0",
       prompt,
@@ -157,9 +159,13 @@ async function generateCardImage(opportunity: {
       response_format: "b64_json",
       output_format: "webp",
     }),
-    signal: AbortSignal.timeout(55000),
+    signal: AbortSignal.timeout(50000),
   });
-  if (!response.ok) {
+  let encoded: unknown;
+  if (response.ok) {
+    const result = await response.json();
+    encoded = result.data?.[0]?.b64_json;
+  } else {
     const errorBody = await response.json().catch(() => null);
     console.warn("Muse Image card generation failed", {
       status: response.status,
@@ -173,10 +179,45 @@ async function generateCardImage(opportunity: {
           : undefined,
       requestId: response.headers.get("x-request-id") || undefined,
     });
-    return null;
+    if (response.status !== 404 && response.status !== 503) return null;
+    const remaining = 55000 - (Date.now() - startedAt);
+    if (remaining < 5000) return null;
+    const alternate = await fetch("https://api.meta.ai/v1/responses", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: "muse-image-1.0",
+        input: prompt,
+        store: false,
+        tools: [
+          {
+            type: "image_generation",
+            size: "1536x1024",
+            output_format: "webp",
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(remaining),
+    });
+    if (!alternate.ok) {
+      const alternateError = await alternate.json().catch(() => null);
+      console.warn("Muse Image response fallback failed", {
+        status: alternate.status,
+        message:
+          typeof alternateError?.error?.message === "string"
+            ? alternateError.error.message
+                .replaceAll(key, "[redacted]")
+                .slice(0, 300)
+            : undefined,
+        requestId: alternate.headers.get("x-request-id") || undefined,
+      });
+      return null;
+    }
+    const result = await alternate.json();
+    encoded = result.output?.find(
+      (item: { type: string }) => item.type === "image_generation_call",
+    )?.result;
   }
-  const result = await response.json();
-  const encoded = result.data?.[0]?.b64_json;
   if (typeof encoded !== "string") return null;
   const bytes = Buffer.from(encoded, "base64");
   return bytes.length && bytes.length <= 4 * 1024 * 1024 ? bytes : null;
@@ -233,7 +274,7 @@ export async function handleAgent(
     if (existing?.data)
       return json({ imageUrl: `/api/agent/card-image/${id}` });
     if (
-      existing?.version === 2 &&
+      existing?.version === 3 &&
       existing?.attemptedAt &&
       Date.now() - new Date(existing.attemptedAt).getTime() < 86400000
     )
@@ -256,7 +297,7 @@ export async function handleAgent(
             sourceUrl: body.sourceUrl,
             data: bytes ? new Binary(bytes) : null,
             attemptedAt: new Date(),
-            version: 2,
+            version: 3,
           },
         },
         { upsert: true },
