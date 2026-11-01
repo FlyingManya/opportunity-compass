@@ -380,11 +380,18 @@ export async function askAgent(
   );
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
+    const error = errorBody?.error;
     console.error("Opportunity model request failed", {
       provider: config.provider,
       discover,
       status: response.status,
-      type: errorBody?.error?.type || "unknown",
+      type: typeof error?.type === "string" ? error.type : "unknown",
+      code: typeof error?.code === "string" ? error.code : undefined,
+      message:
+        typeof error?.message === "string"
+          ? error.message.replaceAll(config.key, "[redacted]").slice(0, 300)
+          : undefined,
+      requestId: response.headers.get("x-request-id") || undefined,
     });
     if (
       config.provider === "meta" &&
