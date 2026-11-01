@@ -1524,9 +1524,9 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                       {user?.resume ? "Replace résumé" : "Upload résumé"}
                     </button>
                     <p className="fineprint">
-                      Files require a signed-in account and Atlas connection.
-                      Automatic résumé extraction is not connected; add your
-                      skills above.
+                      Your résumé stays in your account. If you enable résumé
+                      sharing in Chat & links, Claude can use it when you ask
+                      for opportunities. You can also add skills above.
                     </p>
                   </section>
                   <section className="profile-tip">
