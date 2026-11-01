@@ -178,6 +178,7 @@ export async function handleAgent(
           ? parsed.opportunities.slice(0, 4)
           : [];
         let added = 0;
+        const skipped = { fields: 0, deadline: 0, source: 0 };
         for (const item of items) {
           if (
             typeof item.title !== "string" ||
@@ -186,22 +187,28 @@ export async function handleAgent(
             typeof item.deadline !== "string" ||
             typeof item.sourceUrl !== "string" ||
             typeof item.reason !== "string"
-          )
+          ) {
+            skipped.fields++;
             continue;
+          }
           if (
             !/^\d{4}-\d{2}-\d{2}$/.test(item.deadline) ||
             !Number.isFinite(Date.parse(item.deadline)) ||
             new Date(item.deadline).toISOString().slice(0, 10) !==
               item.deadline ||
             item.deadline < today
-          )
+          ) {
+            skipped.deadline++;
             continue;
+          }
           const url = publicLink(item.sourceUrl);
           if (
             !url ||
             !result.sources.some((source) => sameSource(source.url, url))
-          )
+          ) {
+            skipped.source++;
             continue;
+          }
           await discoveries.updateOne(
             { userId, sourceUrl: url },
             {
@@ -221,6 +228,12 @@ export async function handleAgent(
           );
           added++;
         }
+        console.info("Opportunity discovery validation", {
+          candidates: items.length,
+          sources: result.sources.length,
+          added,
+          skipped,
+        });
         const reply: AgentMessage = {
           id: randomUUID(),
           role: "assistant",
