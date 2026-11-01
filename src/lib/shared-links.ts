@@ -33,6 +33,7 @@ export const agentPreferencesSchema = z.object({
   sources: z.array(linkSchema).max(15),
   useProfile: z.boolean(),
   useResume: z.boolean().default(false),
+  useMetaContext: z.boolean().default(false),
 });
 export const chatSchema = z.object({
   message: z.string().trim().min(1).max(4000),

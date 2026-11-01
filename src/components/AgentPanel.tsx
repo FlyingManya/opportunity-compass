@@ -584,7 +584,7 @@ export default function AgentPanel() {
                   }
                 />
                 <span>
-                  Include my uploaded résumé in Claude requests
+                  Include my uploaded résumé in AI requests
                   <small>
                     Shares the résumé file with{" "}
                     {mode.destination || "the connected AI provider"} when you
@@ -593,6 +593,29 @@ export default function AgentPanel() {
                   </small>
                 </span>
               </label>
+              {mode.label === "Meta AI" && (
+                <label className="agent-profile-consent">
+                  <input
+                    type="checkbox"
+                    checked={!!preferences.useMetaContext}
+                    onChange={(event) =>
+                      setPreferences({
+                        ...preferences,
+                        useMetaContext: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    Use my saved context with Meta AI
+                    <small>
+                      Shares my search brief, profile fields I enabled, active
+                      shared links, recent conversation, and résumé if enabled
+                      with api.meta.ai. Until enabled, Meta receives only the
+                      latest message and today's date.
+                    </small>
+                  </span>
+                </label>
+              )}
               <button className="primary" disabled={busy}>
                 {busy ? (
                   <LoaderCircle size={17} className="spin" />
