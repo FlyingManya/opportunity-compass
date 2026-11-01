@@ -702,3 +702,221 @@
     font-size: 25px;
   }
 }
+.discovery-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.discovery-status-actions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.discovery-status-actions .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.discovery-status-actions .secondary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.status-helper {
+  max-width: 700px;
+}
+.status-error {
+  color: #a23f51;
+  font-weight: 600;
+}
+.status-spinner {
+  animation: status-spin 1s linear infinite;
+}
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.generated-status-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #201d2cef;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+}
+.generated-status-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+  border: 0;
+  color: #fff;
+  background: #ffffff20;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.generated-status-nav {
+  border: 0;
+  color: #fff;
+  background: #ffffff20;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.generated-status-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.generated-status-card {
+  position: relative;
+  width: min(410px, calc(100vw - 150px));
+  height: min(760px, 90vh);
+  border-radius: 18px;
+  overflow: hidden;
+  color: #fff;
+  background: #715788;
+  box-shadow: 0 20px 80px #0006;
+}
+.generated-status-card > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.generated-status-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    #1610218c 0%,
+    transparent 38%,
+    #1b132ddd 70%,
+    #1b132df8 100%
+  );
+}
+.generated-status-progress {
+  position: absolute;
+  top: 14px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  gap: 4px;
+}
+.generated-status-progress span {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: #ffffff70;
+}
+.generated-status-progress span.active {
+  background: #fff;
+}
+.generated-status-brand {
+  position: absolute;
+  top: 29px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.generated-status-copy {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 24px;
+  display: grid;
+  gap: 10px;
+  text-shadow: 0 1px 4px #0007;
+}
+.generated-status-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 12px;
+  font-weight: 700;
+}
+.generated-status-copy h2 {
+  color: #fff;
+  font-size: clamp(27px, 5vw, 36px);
+  line-height: 1.1;
+  margin: 0;
+}
+.generated-status-copy p {
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.generated-status-deadline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.generated-status-copy a {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: #fff;
+  color: #322346;
+  text-shadow: none;
+  font-weight: 700;
+  text-decoration: none;
+}
+.generated-status-copy small {
+  font-size: 12px;
+  color: #f1eaf8;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .generated-status-overlay {
+    gap: 4px;
+    padding: 12px;
+  }
+  .generated-status-card {
+    width: calc(100vw - 76px);
+    height: min(740px, 88vh);
+  }
+  .generated-status-nav {
+    width: 30px;
+    height: 40px;
+    background: transparent;
+  }
+  .generated-status-close {
+    top: 7px;
+    right: 7px;
+  }
+  .generated-status-copy {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+  .generated-status-copy p {
+    -webkit-line-clamp: 2;
+  }
+}

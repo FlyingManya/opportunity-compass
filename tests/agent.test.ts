@@ -303,6 +303,32 @@ function memoryDatabase() {
     },
   } as unknown as Db;
 }
+test("generated status artwork is private to its owner", async () => {
+  const db = memoryDatabase();
+  const id = "a".repeat(64);
+  await db.collection("opportunity_status_images").insertOne({
+    userId: "alice",
+    id,
+    data: { buffer: new Uint8Array([82, 73, 70, 70]) },
+  });
+  const get = (userId: string) =>
+    handleAgent(
+      db,
+      userId,
+      emptyProfile,
+      `agent/status-image/${id}`,
+      "GET",
+      async () => null,
+    );
+  assert.equal((await get("bob")).status, 404);
+  const own = await get("alice");
+  assert.equal(own.status, 200);
+  assert.equal(own.headers.get("Content-Type"), "image/webp");
+  assert.deepEqual(
+    new Uint8Array(await own.arrayBuffer()),
+    new Uint8Array([82, 73, 70, 70]),
+  );
+});
 test("notes and shared links persist per account, duplicates update, and archive cannot affect another account", async () => {
   const keys = [
     "MODEL_API_KEY",

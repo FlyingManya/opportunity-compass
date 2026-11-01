@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
-import type { Binary } from "mongodb";
+import { Binary } from "mongodb";
 import type { Profile } from "./types";
 import {
   emptyAgentPreferences,
@@ -34,6 +34,81 @@ async function allowed(db: Db, userId: string, action: string) {
   );
   return (record?.count || 0) <= 30;
 }
+const statusId = (sourceUrl: string) => tokenHash(sourceUrl);
+
+async function statusOpportunity(
+  db: Db,
+  userId: string,
+  profile: Profile,
+  sourceUrl: string,
+) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: profile.timezone || "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const found = await db.collection("discovered_opportunities").findOne({
+    userId,
+    sourceUrl,
+    deadline: { $gte: today },
+  });
+  if (found) return found;
+  const [settings, recent, shared] = await Promise.all([
+    db.collection("agent_preferences").findOne({ userId }),
+    db
+      .collection("agent_messages")
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(12)
+      .toArray(),
+    db
+      .collection("shared_leads")
+      .find({ userId, archived: false })
+      .limit(12)
+      .toArray(),
+  ]);
+  return curatedForUser(
+    (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
+    recent as unknown as AgentMessage[],
+    shared as unknown as SharedLead[],
+    today,
+  ).find((item) => item.sourceUrl === sourceUrl);
+}
+
+async function generateStatusImage(prompt: string) {
+  const key = process.env.MODEL_API_KEY;
+  if (!key) throw new Error("META_IMAGE_NOT_CONFIGURED");
+  const response = await fetch("https://api.meta.ai/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "muse-image-1.0",
+      prompt,
+      n: 1,
+      size: "1024x1536",
+      response_format: "b64_json",
+      output_format: "webp",
+    }),
+    signal: AbortSignal.timeout(50000),
+  });
+  if (!response.ok) {
+    console.error("Muse Image status generation failed", {
+      status: response.status,
+    });
+    throw new Error("META_IMAGE_FAILED");
+  }
+  const result = await response.json();
+  const encoded = result.data?.[0]?.b64_json;
+  if (typeof encoded !== "string") throw new Error("META_IMAGE_FAILED");
+  const bytes = Buffer.from(encoded, "base64");
+  if (!bytes.length || bytes.length > 4 * 1024 * 1024)
+    throw new Error("META_IMAGE_FAILED");
+  return bytes;
+}
 export async function handleAgent(
   db: Db,
   userId: string,
@@ -46,6 +121,77 @@ export async function handleAgent(
   const leads = db.collection("shared_leads");
   const briefs = db.collection("agent_preferences");
   const discoveries = db.collection("discovered_opportunities");
+  const statusImages = db.collection("opportunity_status_images");
+  if (path.startsWith("agent/status-image/") && method === "GET") {
+    const id = path.slice("agent/status-image/".length);
+    if (!/^[a-f0-9]{64}$/.test(id))
+      return json({ error: "Image not found." }, 404);
+    const image = await statusImages.findOne({ userId, id });
+    if (!image) return json({ error: "Image not found." }, 404);
+    return new Response(new Uint8Array(image.data.buffer), {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+  if (path === "agent/status-image" && method === "POST") {
+    const body = (await input()) as { sourceUrl?: unknown };
+    if (typeof body.sourceUrl !== "string" || body.sourceUrl.length > 2048)
+      return json({ error: "Choose an opportunity." }, 400);
+    const opportunity = await statusOpportunity(
+      db,
+      userId,
+      profile,
+      body.sourceUrl,
+    );
+    if (!opportunity)
+      return json(
+        { error: "This opportunity is no longer on your dashboard." },
+        404,
+      );
+    if (!process.env.MODEL_API_KEY)
+      return json(
+        { error: "Muse Image needs a Meta Model API key on the server." },
+        503,
+      );
+    if (!(await allowed(db, userId, "status-image")))
+      return json(
+        { error: "Please wait before generating more status images." },
+        429,
+      );
+    const prompt = `Create a beautiful vertical editorial illustration for a personal opportunity discovery story. Subject: ${String(opportunity.title).slice(0, 180)}. Organizer: ${String(opportunity.organizer).slice(0, 180)}. Context: ${String(opportunity.description).slice(0, 400)}. Contemporary illustrated 2D art, warm sophisticated colors, welcoming and optimistic, interesting people and environment relevant to the subject, polished composition. Keep the lower half and upper edge visually calm so the app can overlay its own accurate title and deadline. Do not include any words, dates, letters, logos, watermarks, UI, or invented claims.`;
+    try {
+      const bytes = await generateStatusImage(prompt);
+      const id = statusId(body.sourceUrl);
+      await statusImages.updateOne(
+        { userId, id },
+        {
+          $set: {
+            userId,
+            id,
+            sourceUrl: body.sourceUrl,
+            data: new Binary(bytes),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      return json({
+        id,
+        imageUrl: `/api/agent/status-image/${id}?v=${Date.now()}`,
+      });
+    } catch {
+      return json(
+        {
+          error:
+            "Muse Image could not create this status. Please try again later.",
+        },
+        502,
+      );
+    }
+  }
   if (path === "agent/discoveries" && method === "GET") {
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: profile.timezone || "Asia/Kolkata",
@@ -84,11 +230,33 @@ export async function handleAgent(
       today,
     );
     const seen = new Set(rows.map((item) => item.sourceUrl));
+    const opportunities = [
+      ...rows,
+      ...curated.filter((item) => !seen.has(item.sourceUrl)),
+    ].sort((left, right) => left.deadline.localeCompare(right.deadline));
+    const images = await statusImages
+      .find(
+        {
+          userId,
+          id: { $in: opportunities.map((item) => statusId(item.sourceUrl)) },
+        },
+        { projection: { _id: 0, id: 1, updatedAt: 1 } },
+      )
+      .toArray();
+    const imageTimes = new Map(
+      images.map((image) => [image.id, new Date(image.updatedAt).getTime()]),
+    );
     return json({
-      opportunities: [
-        ...rows,
-        ...curated.filter((item) => !seen.has(item.sourceUrl)),
-      ].sort((left, right) => left.deadline.localeCompare(right.deadline)),
+      opportunities: opportunities.map((item) => {
+        const id = statusId(item.sourceUrl);
+        const version = imageTimes.get(id);
+        return {
+          ...item,
+          statusImageUrl: version
+            ? `/api/agent/status-image/${id}?v=${version}`
+            : null,
+        };
+      }),
     });
   }
   if (path === "agent/state" && method === "GET") {
