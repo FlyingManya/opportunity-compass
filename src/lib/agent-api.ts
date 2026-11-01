@@ -135,8 +135,7 @@ export async function handleAgent(
           .limit(8)
           .toArray(),
       ]);
-      const discover =
-        agentMode().label === "Claude" && isDiscoveryRequest(message);
+      const discover = agentMode().search && isDiscoveryRequest(message);
       const result = await askAgent(
         (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
         profile,

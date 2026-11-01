@@ -26,10 +26,12 @@ export type AgentPreferences = {
   sources: string[];
   useProfile: boolean;
   useResume?: boolean;
+  useMetaContext?: boolean;
 };
 export const emptyAgentPreferences: AgentPreferences = {
   brief: "",
   sources: [],
   useProfile: false,
   useResume: false,
+  useMetaContext: false,
 };

@@ -19,7 +19,10 @@ import {
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
 import { emptyProfile } from "../src/lib/types";
-import { emptyAgentPreferences } from "../src/lib/agent-types";
+import {
+  emptyAgentPreferences,
+  type AgentMessage,
+} from "../src/lib/agent-types";
 
 test("shared URLs reject executable schemes, credentials, local addresses and lookalike social hosts", () => {
   for (const url of [
@@ -262,6 +265,7 @@ test("notes and shared links persist per account, duplicates update, and archive
     "AGENT_MODEL",
     "CLAUDE_API_KEY",
     "CLAUDE_MODEL",
+    "AGENT_PROVIDER",
   ];
   const previous = keys.map((key) => process.env[key]);
   keys.forEach((key) => delete process.env[key]);
@@ -347,6 +351,7 @@ test("model requests select the configured transport and do not expose keys in s
     "AGENT_MODEL",
     "CLAUDE_API_KEY",
     "CLAUDE_MODEL",
+    "AGENT_PROVIDER",
   ];
   const previous = keys.map((key) => process.env[key]);
   const original = globalThis.fetch;
@@ -458,6 +463,54 @@ test("model requests select the configured transport and do not expose keys in s
     );
     assert.equal(calls[3].body.messages[0].content[0].type, "document");
     assert.ok(!JSON.stringify(calls[2].body).includes("%PDF-private-resume"));
+    process.env.AGENT_PROVIDER = "meta";
+    const privateHistory: AgentMessage[] = [
+      {
+        id: "old",
+        role: "user",
+        content: "Private prior chat",
+        createdAt: "2026-10-31T00:00:00Z",
+      },
+      {
+        id: "new",
+        role: "user",
+        content: "Find opportunities",
+        createdAt: "2026-11-01T00:00:00Z",
+      },
+    ];
+    const privateResume = {
+      type: "application/pdf",
+      data: new Binary(Buffer.from("%PDF-private-resume")),
+    };
+    assert.equal(agentMode().label, "Meta AI");
+    await askAgent(
+      { ...emptyAgentPreferences, useProfile: true, useResume: true },
+      { ...emptyProfile, profession: "Engineer" },
+      [],
+      privateHistory,
+      privateResume,
+      true,
+    );
+    assert.equal(calls[4].body.input.length, 1);
+    assert.equal(calls[4].body.input[0].content, "Find opportunities");
+    assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
+    assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
+    await askAgent(
+      {
+        ...emptyAgentPreferences,
+        useProfile: true,
+        useResume: true,
+        useMetaContext: true,
+      },
+      { ...emptyProfile, profession: "Engineer" },
+      [],
+      privateHistory,
+      privateResume,
+      true,
+    );
+    assert.equal(calls[5].body.input[1].content[1].type, "input_file");
+    assert.ok(calls[5].body.instructions.includes("Engineer"));
+    assert.ok(calls[5].body.instructions.includes("DISCOVERY TASK"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {
