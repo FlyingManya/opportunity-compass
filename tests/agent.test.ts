@@ -635,3 +635,62 @@ test("discovery saves only cited opportunities with future deadlines for the cur
     else process.env.CLAUDE_API_KEY = previous;
   }
 });
+
+test("a user-supplied official page can match a searched organizer site", async () => {
+  const previous = process.env.CLAUDE_API_KEY;
+  const original = globalThis.fetch;
+  process.env.CLAUDE_API_KEY = "test-only";
+  const url = "https://official.example.org/event/current";
+  globalThis.fetch = (async () =>
+    Response.json({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            opportunities: [
+              {
+                title: "Current competition",
+                organizer: "Organizer",
+                description: "A current competition",
+                deadline: "2999-01-01",
+                sourceUrl: url,
+                reason: "Relevant skills",
+              },
+            ],
+          }),
+          citations: [
+            {
+              type: "web_search_result_location",
+              title: "Organizer calendar",
+              url: "https://official.example.org/events",
+            },
+          ],
+        },
+      ],
+    })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    const matched = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: `Find this competition: ${url}` }),
+    );
+    assert.equal((await matched.json()).added, 1);
+    const unmatched = await handleAgent(
+      db,
+      "bob",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: "Find this competition" }),
+    );
+    assert.equal((await unmatched.json()).added, 0);
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.CLAUDE_API_KEY;
+    else process.env.CLAUDE_API_KEY = previous;
+  }
+});
