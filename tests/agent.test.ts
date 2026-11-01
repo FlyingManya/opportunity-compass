@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Db } from "mongodb";
+import { Binary, type Db } from "mongodb";
 import {
   publicLink,
   platformFor,
@@ -15,6 +15,7 @@ import {
   agentMode,
   askAgent,
   parseClaudeReply,
+  isDiscoveryRequest,
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
 import { emptyProfile } from "../src/lib/types";
@@ -124,6 +125,7 @@ test("assistant context excludes the profile by default and limits opted-in fiel
   assert.ok(!consented.includes('"age"'));
   assert.ok(!consented.includes("Hidden Name"));
   assert.ok(consented.includes("untrusted data"));
+  assert.ok(consented.includes("Exclude expired opportunities"));
 });
 test("model adapters parse text and accept only safe cited links", () => {
   assert.deepEqual(
@@ -437,11 +439,113 @@ test("model requests select the configured transport and do not expose keys in s
     assert.equal(calls[2].body.model, "claude-sonnet-5-5");
     assert.equal(calls[2].body.tools[0].name, "web_search");
     assert.ok(!JSON.stringify(agentMode()).includes("claude-test-key"));
+    await askAgent(
+      { ...emptyAgentPreferences, useResume: true },
+      emptyProfile,
+      [],
+      [
+        {
+          id: "test",
+          role: "user",
+          content: "Find suitable opportunities",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      {
+        type: "application/pdf",
+        data: new Binary(Buffer.from("%PDF-private-resume")),
+      },
+    );
+    assert.equal(calls[3].body.messages[0].content[0].type, "document");
+    assert.ok(!JSON.stringify(calls[2].body).includes("%PDF-private-resume"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {
       if (previous[index] === undefined) delete process.env[key];
       else process.env[key] = previous[index];
     });
+  }
+});
+
+test("discovery saves only cited opportunities with future deadlines for the current account", async () => {
+  assert.equal(isDiscoveryRequest("Find women in tech fellowships"), true);
+  assert.equal(isDiscoveryRequest("Hello"), false);
+  const previous = process.env.CLAUDE_API_KEY;
+  const original = globalThis.fetch;
+  process.env.CLAUDE_API_KEY = "test-only";
+  const opportunities = [
+    {
+      title: "Future program",
+      organizer: "Organizer",
+      description: "For engineers",
+      deadline: "2999-01-01",
+      sourceUrl: "https://official.example.org/apply",
+      reason: "Skills match",
+    },
+    {
+      title: "Expired program",
+      organizer: "Organizer",
+      description: "Old",
+      deadline: "2000-01-01",
+      sourceUrl: "https://official.example.org/old",
+      reason: "Old",
+    },
+    {
+      title: "Uncited program",
+      organizer: "Organizer",
+      description: "No source",
+      deadline: "2999-01-01",
+      sourceUrl: "https://other.example.org/apply",
+      reason: "Unknown",
+    },
+  ];
+  globalThis.fetch = (async () =>
+    Response.json({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ opportunities }),
+          citations: [
+            {
+              type: "web_search_result_location",
+              title: "Official",
+              url: "https://official.example.org/apply",
+            },
+          ],
+        },
+      ],
+    })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: "Find women in tech fellowships" }),
+    );
+    const body = await response.json();
+    assert.equal(body.added, 1);
+    assert.match(body.reply.content, /added 1 opportunity/);
+    const rows = await db
+      .collection("discovered_opportunities")
+      .find({ userId: "alice" })
+      .toArray();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].title, "Future program");
+    assert.equal(
+      (
+        await db
+          .collection("discovered_opportunities")
+          .find({ userId: "bob" })
+          .toArray()
+      ).length,
+      0,
+    );
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.CLAUDE_API_KEY;
+    else process.env.CLAUDE_API_KEY = previous;
   }
 });

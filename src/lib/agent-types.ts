@@ -25,9 +25,11 @@ export type AgentPreferences = {
   brief: string;
   sources: string[];
   useProfile: boolean;
+  useResume?: boolean;
 };
 export const emptyAgentPreferences: AgentPreferences = {
   brief: "",
   sources: [],
   useProfile: false,
+  useResume: false,
 };

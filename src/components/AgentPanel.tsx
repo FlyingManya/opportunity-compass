@@ -383,7 +383,7 @@ export default function AgentPanel() {
                       </p>
                       <div className="agent-prompts">
                         {[
-                          "I’m looking for beginner-friendly medical research opportunities.",
+                          "Find open women-in-tech opportunities that fit my experience.",
                           "Help me find an AI hackathon I can join remotely.",
                           "Help me understand a competition I saw on Instagram.",
                         ].map((prompt) => (
@@ -528,7 +528,7 @@ export default function AgentPanel() {
                       brief: event.target.value,
                     })
                   }
-                  placeholder="For example: medical research internships for second-year students, remote or in India, during June–August. Beginner friendly and preferably funded."
+                  placeholder="For example: women-in-tech fellowships and hackathons for a software engineer, remote or in India. Show only open applications."
                 />
               </label>
               <label>
@@ -566,9 +566,30 @@ export default function AgentPanel() {
                     {mode.destination
                       ? `with ${mode.destination}`
                       : "with the configured model when connected"}
-                    . Your email, password, age, and résumé are excluded.
-                    Messages, brief, and active shared links are used as
-                    conversation context.
+                    . Your email, password, age, and résumé are excluded unless
+                    you separately opt into résumé sharing. Messages, brief, and
+                    active shared links are used as conversation context.
+                  </small>
+                </span>
+              </label>
+              <label className="agent-profile-consent">
+                <input
+                  type="checkbox"
+                  checked={!!preferences.useResume}
+                  onChange={(event) =>
+                    setPreferences({
+                      ...preferences,
+                      useResume: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  Include my uploaded résumé in Claude requests
+                  <small>
+                    Shares the résumé file with{" "}
+                    {mode.destination || "the connected AI provider"} when you
+                    send a message. Turn this off at any time. Requires an
+                    uploaded PDF or text résumé.
                   </small>
                 </span>
               </label>
