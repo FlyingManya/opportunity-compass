@@ -156,14 +156,21 @@ async function generateCardImage(opportunity: {
       size: "1536x1024",
       response_format: "b64_json",
       output_format: "webp",
-      enable_image_search: true,
-      enable_web_search: true,
     }),
     signal: AbortSignal.timeout(55000),
   });
   if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
     console.warn("Muse Image card generation failed", {
       status: response.status,
+      param:
+        typeof errorBody?.error?.param === "string"
+          ? errorBody.error.param
+          : undefined,
+      message:
+        typeof errorBody?.error?.message === "string"
+          ? errorBody.error.message.replaceAll(key, "[redacted]").slice(0, 300)
+          : undefined,
       requestId: response.headers.get("x-request-id") || undefined,
     });
     return null;
@@ -226,6 +233,7 @@ export async function handleAgent(
     if (existing?.data)
       return json({ imageUrl: `/api/agent/card-image/${id}` });
     if (
+      existing?.version === 2 &&
       existing?.attemptedAt &&
       Date.now() - new Date(existing.attemptedAt).getTime() < 86400000
     )
@@ -248,6 +256,7 @@ export async function handleAgent(
             sourceUrl: body.sourceUrl,
             data: bytes ? new Binary(bytes) : null,
             attemptedAt: new Date(),
+            version: 2,
           },
         },
         { upsert: true },
