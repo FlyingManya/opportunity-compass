@@ -7,8 +7,22 @@ import type {
 import type { Profile } from "./types";
 import { publicLink } from "./shared-links";
 
-type Settings = { key: string; base: string; model: string; meta: boolean };
+type Settings = {
+  key: string;
+  base: string;
+  model: string;
+  provider: "claude" | "meta" | "hosted";
+};
 function settings(): Settings | null {
+  if (process.env.CLAUDE_API_KEY || process.env.CLAUDE_MODEL) {
+    if (!process.env.CLAUDE_API_KEY) return null;
+    return {
+      key: process.env.CLAUDE_API_KEY,
+      base: "https://api.anthropic.com/v1",
+      model: process.env.CLAUDE_MODEL || "claude-sonnet-5-5",
+      provider: "claude",
+    };
+  }
   if (
     process.env.AGENT_API_KEY ||
     process.env.AGENT_BASE_URL ||
@@ -38,7 +52,7 @@ function settings(): Settings | null {
       key: process.env.AGENT_API_KEY,
       base,
       model: process.env.AGENT_MODEL,
-      meta: false,
+      provider: "hosted",
     };
   }
   if (process.env.MODEL_API_KEY)
@@ -46,7 +60,7 @@ function settings(): Settings | null {
       key: process.env.MODEL_API_KEY,
       base: "https://api.meta.ai/v1",
       model: process.env.META_TEXT_MODEL || "muse-spark-1.3",
-      meta: true,
+      provider: "meta",
     };
   return null;
 }
@@ -55,9 +69,14 @@ export function agentMode(): AgentMode {
   return config
     ? {
         connected: true,
-        label: config.meta ? "Meta AI" : "Hosted Meta model",
+        label:
+          config.provider === "claude"
+            ? "Claude"
+            : config.provider === "meta"
+              ? "Meta AI"
+              : "Hosted Meta model",
         destination: new URL(config.base).hostname,
-        search: config.meta,
+        search: config.provider !== "hosted",
       }
     : { connected: false, label: "Notes mode", destination: "", search: false };
 }
@@ -121,6 +140,45 @@ export function parseAgentReply(body: Record<string, any>, meta: boolean) {
     ] as { title: string; url: string }[],
   };
 }
+export function parseClaudeReply(body: Record<string, any>) {
+  const blocks = Array.isArray(body.content) ? body.content : [];
+  const content = blocks
+    .filter(
+      (part: any) => part.type === "text" && typeof part.text === "string",
+    )
+    .map((part: any) => part.text)
+    .join("\n")
+    .trim();
+  if (!content) throw new Error("EMPTY_REPLY");
+  const citations = blocks
+    .flatMap((part: any) =>
+      Array.isArray(part.citations) ? part.citations : [],
+    )
+    .filter(
+      (citation: any) =>
+        citation.type === "web_search_result_location" &&
+        typeof citation.url === "string" &&
+        publicLink(citation.url),
+    )
+    .map((citation: any) => ({
+      title: String(citation.title || new URL(citation.url).hostname).slice(
+        0,
+        180,
+      ),
+      url: publicLink(citation.url)!,
+    }));
+  return {
+    content: content.slice(0, 16000),
+    sources: [
+      ...new Map(
+        citations.map((source: { title: string; url: string }) => [
+          source.url,
+          source,
+        ]),
+      ).values(),
+    ] as { title: string; url: string }[],
+  };
+}
 export async function askAgent(
   preferences: AgentPreferences,
   profile: Profile,
@@ -133,42 +191,72 @@ export async function askAgent(
     preferences,
     profile,
     leads,
-    config.meta,
+    config.provider !== "hosted",
   );
   const messages = history
     .slice(-12)
     .map(({ role, content }) => ({ role, content }));
   const response = await fetch(
-    config.base + (config.meta ? "/responses" : "/chat/completions"),
+    config.base +
+      (config.provider === "meta"
+        ? "/responses"
+        : config.provider === "claude"
+          ? "/messages"
+          : "/chat/completions"),
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        config.meta
+      headers:
+        config.provider === "claude"
           ? {
-              model: config.model,
-              instructions,
-              input: messages,
-              tools: [{ type: "web_search" }],
-              reasoning: { effort: "low" },
-              max_output_tokens: 3000,
-              store: false,
+              "x-api-key": config.key,
+              "anthropic-version":
+                process.env.CLAUDE_API_VERSION || "2023-06-01",
+              "Content-Type": "application/json",
             }
           : {
-              model: config.model,
-              messages: [
-                { role: "system", content: instructions },
-                ...messages,
-              ],
-              max_tokens: 1800,
+              Authorization: `Bearer ${config.key}`,
+              "Content-Type": "application/json",
             },
+      body: JSON.stringify(
+        config.provider === "claude"
+          ? {
+              model: config.model,
+              max_tokens: 2048,
+              system: instructions,
+              messages,
+              tools: [
+                {
+                  type: "web_search_20250305",
+                  name: "web_search",
+                  max_uses: 2,
+                },
+              ],
+            }
+          : config.provider === "meta"
+            ? {
+                model: config.model,
+                instructions,
+                input: messages,
+                tools: [{ type: "web_search" }],
+                reasoning: { effort: "low" },
+                max_output_tokens: 3000,
+                store: false,
+              }
+            : {
+                model: config.model,
+                messages: [
+                  { role: "system", content: instructions },
+                  ...messages,
+                ],
+                max_tokens: 1800,
+              },
       ),
       signal: AbortSignal.timeout(35000),
     },
   );
   if (!response.ok) throw new Error("MODEL_UNAVAILABLE");
-  return parseAgentReply(await response.json(), config.meta);
+  const body = await response.json();
+  return config.provider === "claude"
+    ? parseClaudeReply(body)
+    : parseAgentReply(body, config.provider === "meta");
 }
