@@ -241,7 +241,11 @@ export async function handleAgent(
       };
       await messages.insertOne({ ...reply, userId });
       return json({ sent, reply });
-    } catch {
+    } catch (error) {
+      console.error("Opportunity agent failed", {
+        name: error instanceof Error ? error.name : "unknown",
+        code: error instanceof Error ? error.message : "unknown",
+      });
       return json({
         sent,
         reply: null,

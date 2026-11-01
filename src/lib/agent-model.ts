@@ -394,7 +394,16 @@ export async function askAgent(
       signal: AbortSignal.timeout(35000),
     },
   );
-  if (!response.ok) throw new Error("MODEL_UNAVAILABLE");
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    console.error("Opportunity model request failed", {
+      provider: config.provider,
+      discover,
+      status: response.status,
+      type: errorBody?.error?.type || "unknown",
+    });
+    throw new Error("MODEL_UNAVAILABLE");
+  }
   const body = await response.json();
   return config.provider === "claude" ||
     (config.provider === "meta" && discover)
