@@ -14,6 +14,7 @@ import {
   parseAgentReply,
   agentMode,
   askAgent,
+  parseClaudeReply,
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
 import { emptyProfile } from "../src/lib/types";
@@ -125,6 +126,28 @@ test("assistant context excludes the profile by default and limits opted-in fiel
   assert.ok(consented.includes("untrusted data"));
 });
 test("model adapters parse text and accept only safe cited links", () => {
+  assert.deepEqual(
+    parseClaudeReply({
+      content: [
+        {
+          type: "text",
+          text: "Try this program.",
+          citations: [
+            {
+              type: "web_search_result_location",
+              title: "Official",
+              url: "https://example.org/",
+            },
+            { type: "web_search_result_location", url: "javascript:alert(1)" },
+          ],
+        },
+      ],
+    }),
+    {
+      content: "Try this program.",
+      sources: [{ title: "Official", url: "https://example.org/" }],
+    },
+  );
   const result = parseAgentReply(
     {
       output: [
@@ -235,6 +258,8 @@ test("notes and shared links persist per account, duplicates update, and archive
     "AGENT_API_KEY",
     "AGENT_BASE_URL",
     "AGENT_MODEL",
+    "CLAUDE_API_KEY",
+    "CLAUDE_MODEL",
   ];
   const previous = keys.map((key) => process.env[key]);
   keys.forEach((key) => delete process.env[key]);
@@ -318,31 +343,53 @@ test("model requests select the configured transport and do not expose keys in s
     "AGENT_API_KEY",
     "AGENT_BASE_URL",
     "AGENT_MODEL",
+    "CLAUDE_API_KEY",
+    "CLAUDE_MODEL",
   ];
   const previous = keys.map((key) => process.env[key]);
   const original = globalThis.fetch;
-  const calls: { url: string; body: any }[] = [];
+  const calls: { url: string; body: any; headers: Headers }[] = [];
   keys.forEach((key) => delete process.env[key]);
   globalThis.fetch = (async (input, options) => {
     const url = String(input);
-    calls.push({ url, body: JSON.parse(String(options?.body)) });
+    calls.push({
+      url,
+      body: JSON.parse(String(options?.body)),
+      headers: new Headers(options?.headers),
+    });
     return Response.json(
-      url.endsWith("/responses")
+      url.endsWith("/messages")
         ? {
-            output: [
+            content: [
               {
-                type: "message",
-                content: [
+                type: "text",
+                text: "Claude response",
+                citations: [
                   {
-                    type: "output_text",
-                    text: "Meta response",
-                    annotations: [],
+                    type: "web_search_result_location",
+                    title: "Program",
+                    url: "https://example.org/",
                   },
                 ],
               },
             ],
           }
-        : { choices: [{ message: { content: "Hosted response" } }] },
+        : url.endsWith("/responses")
+          ? {
+              output: [
+                {
+                  type: "message",
+                  content: [
+                    {
+                      type: "output_text",
+                      text: "Meta response",
+                      annotations: [],
+                    },
+                  ],
+                },
+              ],
+            }
+          : { choices: [{ message: { content: "Hosted response" } }] },
     );
   }) as typeof fetch;
   try {
@@ -377,6 +424,19 @@ test("model requests select the configured transport and do not expose keys in s
     assert.equal(calls[1].body.tools, undefined);
     process.env.AGENT_BASE_URL = "broken";
     assert.equal(agentMode().connected, false);
+    process.env.CLAUDE_API_KEY = "claude-test-key";
+    assert.equal(agentMode().label, "Claude");
+    assert.equal(agentMode().search, true);
+    assert.equal(
+      (await askAgent(emptyAgentPreferences, emptyProfile, [], []))?.content,
+      "Claude response",
+    );
+    assert.equal(calls[2].url, "https://api.anthropic.com/v1/messages");
+    assert.equal(calls[2].headers.get("x-api-key"), "claude-test-key");
+    assert.equal(calls[2].headers.get("anthropic-version"), "2023-06-01");
+    assert.equal(calls[2].body.model, "claude-sonnet-5-5");
+    assert.equal(calls[2].body.tools[0].name, "web_search");
+    assert.ok(!JSON.stringify(agentMode()).includes("claude-test-key"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {
