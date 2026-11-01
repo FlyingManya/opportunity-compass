@@ -20,6 +20,10 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
+import {
+  sameOpportunity,
+  uniqueOpportunities,
+} from "../src/lib/opportunity-duplicates";
 import { emptyProfile } from "../src/lib/types";
 import {
   emptyAgentPreferences,
@@ -79,6 +83,38 @@ test("research cards use exact official search pages when the model varies the U
       "Find women in tech competitions",
     ),
     null,
+  );
+});
+test("one event with two official pages appears once, while a different edition remains", () => {
+  const official = {
+    title: "Bloomberg x WiCyS 2026 Capture the Flag",
+    organizer: "Women in CyberSecurity (WiCyS)",
+    deadline: "2026-11-13",
+    sourceUrl:
+      "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
+  };
+  const researched = {
+    ...official,
+    title: "Bloomberg x WiCyS Capture the Flag (CTF) 2026",
+    organizer: "WiCyS - Women in Cybersecurity / Bloomberg",
+    sourceUrl: "https://www.wicys.org/benefits/capture-the-flag/",
+  };
+  assert.equal(sameOpportunity(official, researched), true);
+  assert.deepEqual(uniqueOpportunities([official, researched]), [official]);
+  assert.equal(
+    sameOpportunity(official, {
+      ...researched,
+      title: "Bloomberg x WiCyS Capture the Flag 2027",
+      deadline: "2027-11-13",
+    }),
+    false,
+  );
+  assert.equal(
+    sameOpportunity(official, {
+      ...researched,
+      title: "Another tech hackathon 2026",
+    }),
+    false,
   );
 });
 test("incoming phone share preserves a caption and extracts its link", () => {

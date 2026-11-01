@@ -20,6 +20,18 @@ import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
+import {
+  sameOpportunity,
+  uniqueOpportunities,
+  type OpportunityIdentity,
+} from "./opportunity-duplicates";
+type DiscoveredOpportunity = OpportunityIdentity & {
+  userId: string;
+  description: string;
+  reason: string;
+  discoveredAt: string;
+  status: string;
+};
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 async function allowed(db: Db, userId: string, action: string) {
@@ -131,7 +143,9 @@ export async function handleAgent(
   const messages = db.collection("agent_messages");
   const leads = db.collection("shared_leads");
   const briefs = db.collection("agent_preferences");
-  const discoveries = db.collection("discovered_opportunities");
+  const discoveries = db.collection<DiscoveredOpportunity>(
+    "discovered_opportunities",
+  );
   const statusImages = db.collection("opportunity_status_images");
   if (path.startsWith("agent/status-image/") && method === "GET") {
     const id = path.slice("agent/status-image/".length);
@@ -240,11 +254,9 @@ export async function handleAgent(
       shared as unknown as SharedLead[],
       today,
     );
-    const seen = new Set(rows.map((item) => item.sourceUrl));
-    const opportunities = [
-      ...rows,
-      ...curated.filter((item) => !seen.has(item.sourceUrl)),
-    ].sort((left, right) => left.deadline.localeCompare(right.deadline));
+    const opportunities = uniqueOpportunities([...curated, ...rows]).sort(
+      (left, right) => left.deadline.localeCompare(right.deadline),
+    );
     const images = await statusImages
       .find(
         {
@@ -389,7 +401,18 @@ export async function handleAgent(
           ? parsed.opportunities.slice(0, 4)
           : [];
         let added = 0;
+        let alreadyListed = 0;
         const skipped = { fields: 0, deadline: 0, source: 0 };
+        const known: OpportunityIdentity[] = [
+          ...curatedForUser(
+            (settings?.preferences ||
+              emptyAgentPreferences) as AgentPreferences,
+            recent as unknown as AgentMessage[],
+            imports as unknown as SharedLead[],
+            today,
+          ),
+          ...(await discoveries.find({ userId }).toArray()),
+        ];
         for (const item of items) {
           if (
             typeof item.title !== "string" ||
@@ -423,6 +446,16 @@ export async function handleAgent(
             console.info("Opportunity source mismatch");
             continue;
           }
+          const candidate = {
+            title: item.title,
+            organizer: item.organizer,
+            deadline: item.deadline,
+            sourceUrl: url,
+          };
+          if (known.some((existing) => sameOpportunity(existing, candidate))) {
+            alreadyListed++;
+            continue;
+          }
           await discoveries.updateOne(
             { userId, sourceUrl: url },
             {
@@ -440,12 +473,14 @@ export async function handleAgent(
             },
             { upsert: true },
           );
+          known.push(candidate);
           added++;
         }
         console.info("Opportunity discovery validation", {
           candidates: items.length,
           sources: result.sources.length,
           added,
+          alreadyListed,
           skipped,
         });
         const reply: AgentMessage = {
@@ -453,7 +488,9 @@ export async function handleAgent(
           role: "assistant",
           content: added
             ? `I added ${added} opportunity${added === 1 ? "" : "ies"} matching your request to your Discover dashboard. Please check each official page before applying.`
-            : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
+            : alreadyListed
+              ? "I found an opportunity matching your request, but it is already on your Discover dashboard. Please check the official page before applying."
+              : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
           createdAt: new Date().toISOString(),
           sources: [],
         };
