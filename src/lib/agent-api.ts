@@ -27,6 +27,12 @@ function sameSource(left: string, right: string) {
   };
   return canonical(left) === canonical(right);
 }
+function sameHost(left: string, right: string) {
+  return (
+    new URL(left).hostname.replace(/^www\./, "") ===
+    new URL(right).hostname.replace(/^www\./, "")
+  );
+}
 async function allowed(db: Db, userId: string, action: string) {
   const bucket = Math.floor(Date.now() / 900000);
   const record = await db.collection("rate_limits").findOneAndUpdate(
@@ -202,11 +208,21 @@ export async function handleAgent(
             continue;
           }
           const url = publicLink(item.sourceUrl);
-          if (
-            !url ||
-            !result.sources.some((source) => sameSource(source.url, url))
-          ) {
+          const sourceFound =
+            !!url &&
+            result.sources.some(
+              (source) =>
+                sameSource(source.url, url) ||
+                (message.includes(url) && sameHost(source.url, url)),
+            );
+          if (!url || !sourceFound) {
             skipped.source++;
+            console.info("Opportunity source mismatch", {
+              sameHost:
+                !!url &&
+                result.sources.some((source) => sameHost(source.url, url)),
+              mentioned: !!url && message.includes(url),
+            });
             continue;
           }
           await discoveries.updateOne(
