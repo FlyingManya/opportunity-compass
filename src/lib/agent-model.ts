@@ -351,7 +351,7 @@ export async function askAgent(
                 model: discover
                   ? metaModelOverride ||
                     process.env.META_DISCOVERY_MODEL ||
-                    "muse-wonder-1.0"
+                    config.model
                   : config.model,
                 instructions,
                 input: metaInput,
@@ -391,7 +391,8 @@ export async function askAgent(
       discover &&
       response.status === 404 &&
       !metaModelOverride &&
-      config.model !== (process.env.META_DISCOVERY_MODEL || "muse-wonder-1.0")
+      !!process.env.META_DISCOVERY_MODEL &&
+      config.model !== process.env.META_DISCOVERY_MODEL
     )
       return askAgent(
         preferences,

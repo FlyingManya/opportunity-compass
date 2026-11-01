@@ -574,7 +574,7 @@ test("model requests select the configured transport and do not expose keys in s
       true,
     );
     assert.equal(calls[4].url, "https://api.meta.ai/v1/responses");
-    assert.equal(calls[4].body.model, "muse-wonder-1.0");
+    assert.equal(calls[4].body.model, "muse-spark-1.3");
     assert.equal(calls[4].body.input.length, 1);
     assert.equal(calls[4].body.input[0].content, "Find opportunities");
     assert.equal(calls[4].body.tools[0].search_context_size, "high");
@@ -637,7 +637,7 @@ test("Meta discovery tries Spark once if Wonder is unavailable", async () => {
   const original = globalThis.fetch;
   process.env.AGENT_PROVIDER = "meta";
   process.env.MODEL_API_KEY = "test-only";
-  delete process.env.META_DISCOVERY_MODEL;
+  process.env.META_DISCOVERY_MODEL = "muse-wonder-1.0";
   const models: string[] = [];
   globalThis.fetch = (async (_url, options) => {
     const model = JSON.parse(String(options?.body)).model;
