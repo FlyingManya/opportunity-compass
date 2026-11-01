@@ -641,10 +641,10 @@ test("model requests select the configured transport and do not expose keys in s
     );
     assert.equal(calls[4].url, "https://api.meta.ai/v1/responses");
     assert.equal(calls[4].body.model, "muse-spark-1.3");
-    assert.equal(calls[4].body.input.length, 1);
-    assert.equal(calls[4].body.input[0].content, "Find opportunities");
-    assert.equal(calls[4].body.tools[0].search_context_size, "high");
-    assert.deepEqual(calls[4].body.include, ["web_search_call.results"]);
+    assert.equal(typeof calls[4].body.input, "string");
+    assert.ok(calls[4].body.input.includes("Find opportunities"));
+    assert.deepEqual(calls[4].body.tools, [{ type: "web_search" }]);
+    assert.equal(calls[4].body.include, undefined);
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
     await askAgent(
@@ -678,13 +678,9 @@ test("model requests select the configured transport and do not expose keys in s
       null,
       true,
     );
-    assert.ok(
-      calls[6].body.instructions.includes("https://devpost.com/hackathons"),
-    );
-    assert.ok(
-      calls[6].body.instructions.includes("https://womenhack.com/events/"),
-    );
-    assert.ok(!calls[6].body.instructions.includes("Private prior chat"));
+    assert.ok(calls[6].body.input.includes("https://devpost.com/hackathons"));
+    assert.ok(calls[6].body.input.includes("https://womenhack.com/events/"));
+    assert.ok(!calls[6].body.input.includes("Private prior chat"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {

@@ -310,6 +310,18 @@ export async function askAgent(
       );
     }
   }
+  // Meta's web-search endpoint accepts a plain input and a web_search tool.
+  // Keep discovery requests to that supported shape when no PDF is attached.
+  const simpleMetaDiscovery =
+    config.provider === "meta" &&
+    discover &&
+    Array.isArray(metaInput) &&
+    metaInput.every((entry) => typeof entry.content === "string");
+  const discoveryInput = simpleMetaDiscovery
+    ? `${instructions}\nConversation:\n${(metaInput as typeof messages)
+        .map((entry) => `${entry.role}: ${entry.content}`)
+        .join("\n")}`
+    : metaInput;
   const response = await fetch(
     config.base +
       (config.provider === "meta"
@@ -347,25 +359,35 @@ export async function askAgent(
               ],
             }
           : config.provider === "meta"
-            ? {
-                model: discover
-                  ? metaModelOverride ||
+            ? simpleMetaDiscovery
+              ? {
+                  model:
+                    metaModelOverride ||
                     process.env.META_DISCOVERY_MODEL ||
-                    config.model
-                  : config.model,
-                instructions,
-                input: metaInput,
-                tools: [
-                  {
-                    type: "web_search",
-                    search_context_size: discover ? "high" : "medium",
-                  },
-                ],
-                ...(discover ? { include: ["web_search_call.results"] } : {}),
-                reasoning: { effort: discover ? "medium" : "low" },
-                max_output_tokens: 3000,
-                store: false,
-              }
+                    config.model,
+                  input: discoveryInput,
+                  tools: [{ type: "web_search" }],
+                  store: false,
+                }
+              : {
+                  model: discover
+                    ? metaModelOverride ||
+                      process.env.META_DISCOVERY_MODEL ||
+                      config.model
+                    : config.model,
+                  instructions,
+                  input: metaInput,
+                  tools: [
+                    {
+                      type: "web_search",
+                      search_context_size: discover ? "high" : "medium",
+                    },
+                  ],
+                  ...(discover ? { include: ["web_search_call.results"] } : {}),
+                  reasoning: { effort: discover ? "medium" : "low" },
+                  max_output_tokens: 3000,
+                  store: false,
+                }
             : {
                 model: config.model,
                 messages: [
