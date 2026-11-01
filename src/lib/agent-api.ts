@@ -443,7 +443,26 @@ export async function handleAgent(
           );
           if (!url) {
             skipped.source++;
-            console.info("Opportunity source mismatch");
+            const candidate = publicLink(item.sourceUrl);
+            const candidatePage = candidate ? new URL(candidate) : null;
+            console.info("Opportunity source mismatch", {
+              candidate: candidatePage
+                ? `${candidatePage.hostname}${candidatePage.pathname}`
+                : "invalid",
+              sameSiteCitations: candidatePage
+                ? result.sources
+                    .filter(
+                      (source) =>
+                        new URL(source.url).hostname.replace(/^www\./, "") ===
+                        candidatePage.hostname.replace(/^www\./, ""),
+                    )
+                    .slice(0, 5)
+                    .map((source) => {
+                      const page = new URL(source.url);
+                      return `${page.hostname}${page.pathname}`;
+                    })
+                : [],
+            });
             continue;
           }
           const candidate = {
