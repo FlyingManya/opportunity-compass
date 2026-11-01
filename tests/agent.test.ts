@@ -25,7 +25,11 @@ import {
   uniqueOpportunities,
 } from "../src/lib/opportunity-duplicates";
 import { emptyProfile } from "../src/lib/types";
-import { quickLookFallback, parseQuickLookReply } from "../src/lib/quick-look";
+import {
+  quickLookFallback,
+  parseQuickLookReply,
+  quickLookMetaPrompt,
+} from "../src/lib/quick-look";
 import {
   emptyAgentPreferences,
   type AgentMessage,
@@ -71,6 +75,27 @@ test("Quick Look uses the person's field and résumé text instead of fixed samp
     ).map((item) => item.label),
     ["Research grants", "Clinical fellowships"],
   );
+});
+test("Quick Look Meta prompt respects profile and résumé sharing choices", () => {
+  const profile = { ...emptyProfile, profession: "Private doctor" };
+  const hidden = quickLookMetaPrompt(
+    profile,
+    emptyAgentPreferences,
+    "Private résumé",
+  );
+  assert.ok(!hidden.includes("Private doctor"));
+  assert.ok(!hidden.includes("Private résumé"));
+  const shared = quickLookMetaPrompt(
+    profile,
+    {
+      ...emptyAgentPreferences,
+      useProfile: true,
+      useResume: true,
+    },
+    "Private résumé",
+  );
+  assert.ok(shared.includes("Private doctor"));
+  assert.ok(shared.includes("Private résumé"));
 });
 test("research cards use exact official search pages when the model varies the URL", () => {
   const source = {

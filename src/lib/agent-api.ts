@@ -20,7 +20,11 @@ import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
-import { parseQuickLookReply, quickLookFallback } from "./quick-look";
+import {
+  parseQuickLookReply,
+  quickLookFallback,
+  quickLookMetaPrompt,
+} from "./quick-look";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -165,7 +169,9 @@ export async function handleAgent(
         : "";
     const fallback = quickLookFallback(profile, preferences?.brief, resumeText);
     const hasSignals =
-      !!fallback.length || (!!resume && !!preferences?.useResume);
+      (!!preferences?.useProfile && !!fallback.length) ||
+      !!preferences?.brief?.trim() ||
+      (!!resume && !!preferences?.useResume);
     const signature = tokenHash(
       JSON.stringify({
         profession: profile.profession,
@@ -174,6 +180,7 @@ export async function handleAgent(
         experience: profile.experience,
         brief: preferences?.brief || "",
         consent: !!preferences?.useMetaContext,
+        profileConsent: !!preferences?.useProfile,
         resumeConsent: !!preferences?.useResume,
         resumeUpdatedAt: resume?.updatedAt?.toISOString() || "",
       }),
@@ -199,7 +206,7 @@ export async function handleAgent(
     if (!(await allowed(db, userId, "quick-look")))
       return json({ topics: fallback });
     try {
-      const text = `Suggest 4 to 6 short opportunity topics tailored to this person. Return ONLY a JSON array of strings, each 1 to 3 words. Use their actual field and interests; for a medical student, prefer research, biology, clinical programs and medical competitions over software jobs. Do not invent events or deadlines.\nProfile: ${JSON.stringify({ profession: profile.profession, skills: profile.skills, interests: profile.interests, experience: profile.experience, brief: preferences.brief })}\n${preferences.useResume && resumeText ? `Résumé text: ${JSON.stringify(resumeText.slice(0, 8000))}` : ""}`;
+      const text = quickLookMetaPrompt(profile, preferences, resumeText);
       const input: unknown =
         preferences.useResume && resume?.type === "application/pdf"
           ? [
