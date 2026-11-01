@@ -491,10 +491,10 @@ test("model requests select the configured transport and do not expose keys in s
       privateResume,
       true,
     );
-    assert.equal(calls[4].url, "https://api.meta.ai/v1/messages");
-    assert.equal(calls[4].body.messages.length, 1);
-    assert.equal(calls[4].body.messages[0].content, "Find opportunities");
-    assert.equal(calls[4].body.tool_choice.type, "any");
+    assert.equal(calls[4].url, "https://api.meta.ai/v1/responses");
+    assert.equal(calls[4].body.input.length, 1);
+    assert.equal(calls[4].body.input[0].content, "Find opportunities");
+    assert.equal(calls[4].body.tools[0].search_context_size, "high");
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
     await askAgent(
@@ -510,9 +510,9 @@ test("model requests select the configured transport and do not expose keys in s
       privateResume,
       true,
     );
-    assert.equal(calls[5].body.messages[1].content[0].type, "document");
-    assert.ok(calls[5].body.system.includes("Engineer"));
-    assert.ok(calls[5].body.system.includes("DISCOVERY TASK"));
+    assert.equal(calls[5].body.input[1].content[1].type, "input_file");
+    assert.ok(calls[5].body.instructions.includes("Engineer"));
+    assert.ok(calls[5].body.instructions.includes("DISCOVERY TASK"));
     await askAgent(
       emptyAgentPreferences,
       emptyProfile,
@@ -528,9 +528,13 @@ test("model requests select the configured transport and do not expose keys in s
       null,
       true,
     );
-    assert.ok(calls[6].body.system.includes("https://devpost.com/hackathons"));
-    assert.ok(calls[6].body.system.includes("https://womenhack.com/events/"));
-    assert.ok(!calls[6].body.system.includes("Private prior chat"));
+    assert.ok(
+      calls[6].body.instructions.includes("https://devpost.com/hackathons"),
+    );
+    assert.ok(
+      calls[6].body.instructions.includes("https://womenhack.com/events/"),
+    );
+    assert.ok(!calls[6].body.instructions.includes("Private prior chat"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {

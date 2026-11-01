@@ -214,7 +214,7 @@ export async function askAgent(
     leads,
     config.provider !== "hosted",
   );
-  const discoveryInstructions = `\nDISCOVERY TASK: Search the web for opportunities matching the latest user request and saved context. Return only a JSON object: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD","sourceUrl":"https://...","reason":"..."}]}. Include at most 4. Every sourceUrl must be the official organizer or application page that explicitly confirms the deadline. Exclude expired, closed, uncertain, student-only opportunities for a working professional unless their profile says they are a student, and any result without an exact future deadline. Cite each official source in the response. Return an empty array if none meet these rules. No Markdown or commentary.`;
+  const discoveryInstructions = `\nDISCOVERY TASK: You must use web_search now, even when the user names an event. Search the official organizer page for the latest request and verify the actual application deadline from that page. Return only a JSON object: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD","sourceUrl":"https://...","reason":"..."}]}. Include at most 4. Every sourceUrl must be the official organizer or application page that explicitly confirms the deadline. Exclude expired, closed, uncertain, student-only opportunities for a working professional unless their profile says they are a student, and any result without an exact future deadline. Cite each official source in the response. Return an empty array if none meet these rules. No Markdown or commentary.`;
   if (discover && (config.provider === "claude" || config.provider === "meta"))
     instructions += discoveryInstructions;
   if (config.provider === "meta" && !preferences.useMetaContext) {
@@ -274,7 +274,6 @@ export async function askAgent(
     }
   }
   let metaInput: unknown = messages;
-  let metaSearchMessages: unknown = messages;
   if (
     config.provider === "meta" &&
     preferences.useMetaContext &&
@@ -305,32 +304,12 @@ export async function askAgent(
             }
           : entry,
       );
-      metaSearchMessages = messages.map((entry, index) =>
-        index === messages.length - 1 && entry.role === "user"
-          ? {
-              role: "user",
-              content: [
-                {
-                  type: "document",
-                  source: {
-                    type: "base64",
-                    media_type: "application/pdf",
-                    data: bytes.toString("base64"),
-                  },
-                },
-                { type: "text", text: entry.content },
-              ],
-            }
-          : entry,
-      );
     }
   }
   const response = await fetch(
     config.base +
       (config.provider === "meta"
-        ? discover
-          ? "/messages"
-          : "/responses"
+        ? "/responses"
         : config.provider === "claude"
           ? "/messages"
           : "/chat/completions"),
@@ -363,33 +342,29 @@ export async function askAgent(
                 },
               ],
             }
-          : config.provider === "meta" && discover
+          : config.provider === "meta"
             ? {
                 model: config.model,
-                max_tokens: 3000,
-                system: instructions,
-                messages: metaSearchMessages,
-                tools: [{ type: "web_search" }],
-                tool_choice: { type: "any" },
+                instructions,
+                input: metaInput,
+                tools: [
+                  {
+                    type: "web_search",
+                    search_context_size: discover ? "high" : "medium",
+                  },
+                ],
+                reasoning: { effort: discover ? "medium" : "low" },
+                max_output_tokens: 3000,
+                store: false,
               }
-            : config.provider === "meta"
-              ? {
-                  model: config.model,
-                  instructions,
-                  input: metaInput,
-                  tools: [{ type: "web_search" }],
-                  reasoning: { effort: "low" },
-                  max_output_tokens: 3000,
-                  store: false,
-                }
-              : {
-                  model: config.model,
-                  messages: [
-                    { role: "system", content: instructions },
-                    ...messages,
-                  ],
-                  max_tokens: 1800,
-                },
+            : {
+                model: config.model,
+                messages: [
+                  { role: "system", content: instructions },
+                  ...messages,
+                ],
+                max_tokens: 1800,
+              },
       ),
       signal: AbortSignal.timeout(35000),
     },
@@ -401,15 +376,23 @@ export async function askAgent(
       discover,
       status: response.status,
       type: errorBody?.error?.type || "unknown",
-      detail: String(errorBody?.error?.message || "").slice(0, 300),
     });
     throw new Error("MODEL_UNAVAILABLE");
   }
   const body = await response.json();
-  return config.provider === "claude" ||
-    (config.provider === "meta" && discover)
-    ? parseClaudeReply(body)
-    : parseAgentReply(body, config.provider === "meta");
+  const parsed =
+    config.provider === "claude"
+      ? parseClaudeReply(body)
+      : parseAgentReply(body, config.provider === "meta");
+  if (config.provider === "meta" && discover)
+    console.info("Opportunity search response", {
+      searched: (body.output || []).some(
+        (item: { type: string }) => item.type === "web_search_call",
+      ),
+      citations: parsed.sources.length,
+      contentLength: parsed.content.length,
+    });
+  return parsed;
 }
 export function isDiscoveryRequest(message: string) {
   return /\b(find|search|show|recommend|discover|looking for|opportunit(?:y|ies)|hackathons?|fellowships?|scholarships?|competitions?|events?|jobs?|programs?)\b/i.test(
