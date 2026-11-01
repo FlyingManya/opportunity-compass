@@ -11,6 +11,15 @@ export type AgentMessage = {
   createdAt: string;
   sources?: { title: string; url: string }[];
 };
+export type ResearchedSaved = {
+  id: string;
+  sourceUrl: string;
+  title: string;
+  organizer: string;
+  description: string;
+  deadline: string;
+  savedAt: string;
+};
 export type SharedLead = {
   id: string;
   url: string;

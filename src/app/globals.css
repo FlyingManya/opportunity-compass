@@ -1147,6 +1147,34 @@ h1 {
   font: inherit;
   text-align: left;
 }
+.researched-saved-card h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+.researched-saved-card h3 a:hover {
+  text-decoration: underline;
+}
+.researched-saved-description {
+  color: #756a7d;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 18px 0;
+}
+.researched-saved-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 15px;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.researched-saved-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #8669aa;
+  font-size: 13px;
+  text-decoration: none;
+}
 .saved-card-top p {
   font-size: 12px;
   color: #a99bb5;
@@ -1323,6 +1351,40 @@ h1 {
 }
 .calendar-legend span:last-child i {
   background: #dbe9cd;
+}
+.calendar-agenda {
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 17px;
+}
+.calendar-agenda h3 {
+  font: 600 16px var(--heading);
+  color: #6b5878;
+  margin: 0 0 10px;
+}
+.calendar-agenda button {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid #f2eef5;
+  background: none;
+  color: #745f84;
+  font-size: 13px;
+  text-align: left;
+}
+.calendar-agenda button:hover span {
+  text-decoration: underline;
+}
+.calendar-agenda button strong {
+  flex: 0 0 52px;
+  color: #a286b8;
+}
+.calendar-agenda p {
+  color: #a89bb6;
+  font-size: 13px;
 }
 .calendar-aside,
 .resume-card {

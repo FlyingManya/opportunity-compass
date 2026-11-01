@@ -1,4 +1,5 @@
 import type { Opportunity } from "./types";
+import type { ResearchedSaved } from "./agent-types";
 const escape = (s: string) =>
   s
     .replace(/\\/g, "\\\\")
@@ -24,7 +25,7 @@ function fold(line: string) {
   return result + part;
 }
 export function calendarFile(
-  items: Opportunity[],
+  items: (Opportunity | ResearchedSaved)[],
   kind: "deadline" | "event" = "deadline",
 ) {
   const lines = [
@@ -33,7 +34,10 @@ export function calendarFile(
     "PRODID:-//Opportunity Compass//Starter//EN",
     "CALSCALE:GREGORIAN",
     ...items.flatMap((o) => {
-      const iso = kind === "deadline" ? o.deadline : o.eventDate;
+      const sample = "sample" in o && o.sample;
+      if (!sample && kind === "event") return [];
+      const iso =
+        kind === "deadline" ? o.deadline : (o as Opportunity).eventDate;
       const day = iso.slice(0, 10).replaceAll("-", "");
       const next = new Date(iso);
       next.setUTCDate(next.getUTCDate() + 1);
@@ -46,9 +50,9 @@ export function calendarFile(
           .replace(/\.\d{3}/, "")}`,
         `DTSTART;VALUE=DATE:${day}`,
         `DTEND;VALUE=DATE:${next.toISOString().slice(0, 10).replaceAll("-", "")}`,
-        `SUMMARY:${escape(`[SAMPLE] ${kind === "deadline" ? "Apply by: " : ""}${o.title}`)}`,
-        `DESCRIPTION:${escape("Fictional sample opportunity for testing Opportunity Compass. This date is not an actual application deadline. Exact cutoff time and timezone are not specified.\n" + o.description)}`,
-        `LOCATION:${escape(o.location)}`,
+        `SUMMARY:${escape(`${sample ? "[SAMPLE] " : ""}${kind === "deadline" ? "Application deadline: " : ""}${o.title}`)}`,
+        `DESCRIPTION:${escape(sample ? "Fictional sample opportunity for testing Opportunity Compass. This date is not an actual application deadline. Exact cutoff time and timezone are not specified.\n" + o.description : `Check the official page for the exact cutoff time and eligibility.\n${o.description}\n${(o as ResearchedSaved).sourceUrl}`)}`,
+        ...(sample ? [`LOCATION:${escape((o as Opportunity).location)}`] : []),
         "END:VEVENT",
       ];
     }),

@@ -7,6 +7,7 @@ import {
   type AgentMessage,
   type AgentPreferences,
   type SharedLead,
+  type ResearchedSaved,
 } from "./agent-types";
 import {
   agentPreferencesSchema,
@@ -152,6 +153,52 @@ export async function handleAgent(
     "discovered_opportunities",
   );
   const statusImages = db.collection("opportunity_status_images");
+  if (path === "agent/interested" && method === "GET") {
+    const items = await db
+      .collection<ResearchedSaved & { userId: string }>("saved_researched")
+      .find({ userId }, { projection: { _id: 0, userId: 0 } })
+      .sort({ savedAt: -1 })
+      .limit(100)
+      .toArray();
+    return json({ items });
+  }
+  if (
+    path === "agent/interested" &&
+    (method === "POST" || method === "DELETE")
+  ) {
+    const data = (await input()) as { sourceUrl?: unknown };
+    if (typeof data.sourceUrl !== "string" || !publicLink(data.sourceUrl))
+      return json({ error: "Choose an opportunity from your dashboard." }, 400);
+    const sourceUrl = publicLink(data.sourceUrl)!;
+    const savedResearch = db.collection<ResearchedSaved & { userId: string }>(
+      "saved_researched",
+    );
+    if (method === "DELETE") {
+      await savedResearch.deleteOne({ userId, sourceUrl });
+      return json({ ok: true });
+    }
+    const opportunity = await statusOpportunity(db, userId, profile, sourceUrl);
+    if (!opportunity)
+      return json(
+        { error: "This opportunity is no longer available on your dashboard." },
+        404,
+      );
+    const item: ResearchedSaved = {
+      id: statusId(sourceUrl),
+      sourceUrl,
+      title: String(opportunity.title).slice(0, 180),
+      organizer: String(opportunity.organizer).slice(0, 180),
+      description: String(opportunity.description).slice(0, 600),
+      deadline: String(opportunity.deadline),
+      savedAt: new Date().toISOString(),
+    };
+    await savedResearch.updateOne(
+      { userId, sourceUrl },
+      { $set: { ...item, userId } },
+      { upsert: true },
+    );
+    return json({ item });
+  }
   if (path === "agent/quick-look" && (method === "GET" || method === "POST")) {
     const preferences = (await briefs.findOne({ userId }))?.preferences as
       AgentPreferences | undefined;

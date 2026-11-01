@@ -144,6 +144,23 @@ test("calendar export labels samples and uses exclusive next-day ends", () => {
   );
   assert.ok(!text.replaceAll("\r\n", "").includes("\n"));
 });
+test("real researched deadline exports its exact opportunity name and date", () => {
+  const text = calendarFile([
+    {
+      id: "real-1",
+      sourceUrl: "https://official.example.org/apply",
+      title: "AI Research Challenge",
+      organizer: "Official organizer",
+      description: "A real competition.",
+      deadline: "2026-11-12",
+      savedAt: "2026-11-02T00:00:00.000Z",
+    },
+  ]);
+  assert.match(text, /Application deadline: AI Research Challenge/);
+  assert.match(text, /DTSTART;VALUE=DATE:20261112/);
+  assert.match(text, /DTEND;VALUE=DATE:20261113/);
+  assert.ok(!text.includes("[SAMPLE]"));
+});
 test("calendar text escapes newline-based event injection", () => {
   const text = calendarFile([
     { ...catalog[0], title: "Hello\nBEGIN:VEVENT, extra; data" },

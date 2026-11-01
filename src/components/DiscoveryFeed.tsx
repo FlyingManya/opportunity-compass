@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Clock,
   LoaderCircle,
+  Bookmark,
   Sparkles,
   X,
 } from "lucide-react";
@@ -47,8 +48,14 @@ function formatDeadline(deadline: string) {
 
 export default function DiscoveryFeed({
   openStatusSignal = 0,
+  savedSourceUrls = [],
+  savingSourceUrl = "",
+  onToggleInterested,
 }: {
   openStatusSignal?: number;
+  savedSourceUrls?: string[];
+  savingSourceUrl?: string;
+  onToggleInterested?: (item: Discovery) => void;
 }) {
   const [items, setItems] = useState<Discovery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,6 +256,29 @@ export default function DiscoveryFeed({
                       ? "OFFICIAL SOURCE"
                       : "AI RESEARCHED"}
                   </span>
+                  {onToggleInterested && (
+                    <button
+                      type="button"
+                      className={`bookmark-button ${savedSourceUrls.includes(item.sourceUrl) ? "is-saved" : ""}`}
+                      onClick={() => onToggleInterested(item)}
+                      disabled={savingSourceUrl === item.sourceUrl}
+                      aria-label={`${savedSourceUrls.includes(item.sourceUrl) ? "Remove" : "Add"} ${item.title} ${savedSourceUrls.includes(item.sourceUrl) ? "from" : "to"} Interested`}
+                      title={
+                        savedSourceUrls.includes(item.sourceUrl)
+                          ? "Remove from Interested"
+                          : "Add to Interested"
+                      }
+                    >
+                      <Bookmark
+                        size={18}
+                        fill={
+                          savedSourceUrls.includes(item.sourceUrl)
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                    </button>
+                  )}
                 </div>
                 <div className="op-card-body">
                   <div className="card-category-row">

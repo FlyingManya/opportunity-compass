@@ -1,6 +1,6 @@
 # Opportunity Compass
 
-A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs, and custom discoveries**. This starter includes a responsive interface, onboarding, MongoDB-backed account/profile APIs, saved checklists, illustrated Stories, and calendar export.
+A personal opportunity dashboard for **hackathons, competitions and events, new interests, and jobs**. This starter includes a responsive interface, onboarding, MongoDB-backed account/profile APIs, saved checklists, illustrated Stories, and calendar export.
 
 ## What works
 
@@ -10,7 +10,7 @@ A personal opportunity dashboard for **jobs, hackathons, women-in-tech programs,
 - A sample dashboard with category, keyword, format, and month filters. Application deadlines and event dates can be filtered separately.
 - Opportunity details, illustrative relevance explanations, save/unsave, application status, and editable checklists.
 - Stories with pause/play, previous/next, details, and saving.
-- A calendar showing saved sample deadlines and event dates; `.ics` exports clearly labelled **SAMPLE**, using all-day dates because no exact cutoff times are known.
+- Research-backed opportunity cards can be added to Interested. Their application deadlines appear under the same opportunity name in the in-app calendar and in `.ics` exports. Sample dates remain labelled **SAMPLE**; all-day dates do not imply a verified cutoff time.
 - Editable profiles with age, profession, location, timezone, skills, interests, and separate experience fields.
 - Server-side registration, login, logout, session handling, account-scoped profile/checklist storage, and PDF/TXT résumé upload/download/delete **when Atlas is connected**.
 
@@ -75,6 +75,7 @@ The app creates only these collections in its configured database:
 | `users`             | Normalized email, salted scrypt password hash, profile                  |
 | `sessions`          | Hashed random session tokens, user ID, TTL expiry                       |
 | `saved`             | User-scoped sample opportunity status and completed tasks               |
+| `saved_researched`  | User-scoped researched cards and application deadline snapshots         |
 | `resumes`           | One private PDF/TXT per account, max 2 MB                               |
 | `rate_limits`       | Expiring per-email login/signup attempt counters                        |
 

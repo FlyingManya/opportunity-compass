@@ -59,6 +59,7 @@ import {
   relevance,
 } from "@/lib/catalog";
 import { calendarFile } from "@/lib/calendar";
+import type { ResearchedSaved } from "@/lib/agent-types";
 type View = "discover" | "saved" | "calendar" | "profile" | "agent";
 const categoryIcons = {
   all: Sparkles,
@@ -107,6 +108,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const [user, setUser] = useState<User | null>(initialUser),
     [previewProfile, setPreviewProfile] = useState<Profile>(emptyProfile),
     [saved, setSaved] = useState<Saved[]>([]),
+    [researchedSaved, setResearchedSaved] = useState<ResearchedSaved[]>([]),
     [db, setDb] = useState("checking"),
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(""),
@@ -120,7 +122,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     [playing, setPlaying] = useState(false),
     [storyTick, setStoryTick] = useState(0),
     [calendarMonth, setCalendarMonth] = useState(
-      () => new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+      () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     );
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -132,6 +134,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const fileRef = useRef<HTMLInputElement>(null),
     searchRef = useRef<HTMLInputElement>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [savingResearch, setSavingResearch] = useState("");
   const [openStatusSignal, setOpenStatusSignal] = useState(0);
   const [agentPrompt, setAgentPrompt] = useState("");
   const results = filterCatalog(
@@ -145,6 +148,32 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const savedItems = saved
     .map((s) => catalog.find((o) => o.id === s.opportunityId))
     .filter((o): o is Opportunity => !!o);
+  const calendarEntries = [
+    ...savedItems.flatMap((o) => [
+      {
+        id: `${o.id}-deadline`,
+        date: o.deadline.slice(0, 10),
+        label: `Deadline: ${o.title}`,
+        sample: o,
+      },
+      {
+        id: `${o.id}-event`,
+        date: o.eventDate.slice(0, 10),
+        label: `Event: ${o.title}`,
+        sample: o,
+      },
+    ]),
+    ...researchedSaved.map((item) => ({
+      id: item.id,
+      date: item.deadline.slice(0, 10),
+      label: `Deadline: ${item.title}`,
+      sourceUrl: item.sourceUrl,
+    })),
+  ];
+  const calendarMonthKey = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
+  const monthlyCalendarEntries = calendarEntries
+    .filter((entry) => entry.date.startsWith(calendarMonthKey))
+    .sort((a, b) => a.date.localeCompare(b.date));
   const storyList = results.length ? results : catalog;
   const currentStory = story === null ? null : storyList[story];
   const modalOpen = !!(
@@ -173,8 +202,14 @@ export default function Compass({ initialUser }: { initialUser: User }) {
         if (me.user) {
           setUser(me.user);
           setDraft(me.user.profile);
-          const s = await api("saved");
-          if (alive) setSaved(s.items);
+          const [s, researched] = await Promise.all([
+            api("saved"),
+            api("agent/interested"),
+          ]);
+          if (alive) {
+            setSaved(s.items);
+            setResearchedSaved(researched.items);
+          }
         } else {
           setUser(null);
           window.location.replace("/");
@@ -295,6 +330,38 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       setBusy(false);
     }
   }
+  async function toggleResearched(item: {
+    sourceUrl: string;
+    title: string;
+    deadline: string;
+  }) {
+    if (savingResearch) return;
+    const existing = researchedSaved.find(
+      (entry) => entry.sourceUrl === item.sourceUrl,
+    );
+    setSavingResearch(item.sourceUrl);
+    try {
+      const result = await api(
+        "agent/interested",
+        existing ? "DELETE" : "POST",
+        { sourceUrl: item.sourceUrl },
+      );
+      setResearchedSaved((previous) =>
+        existing
+          ? previous.filter((entry) => entry.sourceUrl !== item.sourceUrl)
+          : [result.item, ...previous],
+      );
+      setToast(
+        existing
+          ? "Removed from Interested and your calendar."
+          : `${item.title} added to Interested and your calendar.`,
+      );
+    } catch (cause) {
+      setToast((cause as Error).message);
+    } finally {
+      setSavingResearch("");
+    }
+  }
   async function updateSaved(o: Opportunity, changes: Partial<Saved>) {
     const old = saved.find((s) => s.opportunityId === o.id);
     if (!old) return;
@@ -310,7 +377,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     }
   }
   function exportCalendar(
-    items: Opportunity[],
+    items: (Opportunity | ResearchedSaved)[],
     kind: "deadline" | "event" = "deadline",
   ) {
     if (!items.length) {
@@ -323,11 +390,11 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "compass-sample-" + kind + ".ics";
+    a.download = "compass-" + kind + "s.ics";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setToast(
-      "Downloaded clearly labelled sample dates. Review before importing.",
+      "Downloaded calendar dates. Check official deadlines before relying on them.",
     );
   }
   async function authenticate(e: React.FormEvent) {
@@ -344,7 +411,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       setDraft(b.user.profile);
       setAuth(null);
       setPassword("");
-      setSaved((await api("saved")).items);
+      const [sampleSaves, researchSaves] = await Promise.all([
+        api("saved"),
+        api("agent/interested"),
+      ]);
+      setSaved(sampleSaves.items);
+      setResearchedSaved(researchSaves.items);
       if (!b.user.profile.onboarded) setOnboarding(true);
       setToast("Welcome to your personal space.");
     } catch (e) {
@@ -417,6 +489,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       setUser(null);
       setPreviewProfile(emptyProfile);
       setSaved([]);
+      setResearchedSaved([]);
       sessionStorage.removeItem("compass-preview-saved");
       window.location.replace("/");
     } catch (e) {
@@ -661,8 +734,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             >
               <Icon size={18} />
               {name}
-              {id === "saved" && saved.length > 0 && (
-                <span className="nav-count">{saved.length}</span>
+              {id === "saved" && saved.length + researchedSaved.length > 0 && (
+                <span className="nav-count">
+                  {saved.length + researchedSaved.length}
+                </span>
               )}
             </button>
           ))}
@@ -670,7 +745,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
         <div className="sidebar-line" />
         <div className="workspace-label">FIND YOUR NEXT</div>
         <div className="category-nav">
-          {(["jobs", "hackathons", "women-tech", "custom"] as Category[]).map(
+          {(["hackathons", "women-tech", "custom", "jobs"] as Category[]).map(
             (c) => {
               const Icon = categoryIcons[c];
               return (
@@ -1025,10 +1100,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   {(
                     [
                       "all",
-                      "jobs",
                       "hackathons",
                       "women-tech",
                       "custom",
+                      "jobs",
                     ] as Category[]
                   ).map((c) => (
                     <button
@@ -1052,7 +1127,14 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   {profile.onboarded ? "Profile relevance" : "Explore all"}
                 </span>
               </div>
-              <DiscoveryFeed openStatusSignal={openStatusSignal} />
+              <DiscoveryFeed
+                openStatusSignal={openStatusSignal}
+                savedSourceUrls={researchedSaved.map(
+                  (entry) => entry.sourceUrl,
+                )}
+                savingSourceUrl={savingResearch}
+                onToggleInterested={toggleResearched}
+              />
               <div className="sample-note">
                 <span className="sample-dot" />
                 <p>
@@ -1129,10 +1211,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 </div>
                 <button
                   className="secondary"
-                  disabled={!saved.length}
-                  onClick={() => exportCalendar(savedItems)}
+                  disabled={!saved.length && !researchedSaved.length}
+                  onClick={() =>
+                    exportCalendar([...savedItems, ...researchedSaved])
+                  }
                 >
-                  <Download size={15} /> Export sample deadlines
+                  <Download size={15} /> Export deadlines
                 </button>
               </div>
               {!user && (
@@ -1144,8 +1228,66 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   </p>
                 </div>
               )}
-              {savedItems.length ? (
+              {savedItems.length || researchedSaved.length ? (
                 <div className="saved-grid">
+                  {researchedSaved.map((item) => (
+                    <section
+                      className="saved-card researched-saved-card"
+                      key={item.id}
+                    >
+                      <div className="saved-card-top">
+                        <div
+                          className="op-art"
+                          role="img"
+                          aria-label="Opportunity illustration"
+                        />
+                        <div>
+                          <span className="eyebrow">
+                            RESEARCHED OPPORTUNITY
+                          </span>
+                          <h3>
+                            <a
+                              href={item.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {item.title}
+                            </a>
+                          </h3>
+                          <p>
+                            <Clock size={12} /> Application deadline{" "}
+                            {fmt(item.deadline)}
+                          </p>
+                        </div>
+                        <button
+                          className="icon-button"
+                          aria-label={`Remove ${item.title} from Interested`}
+                          disabled={!!savingResearch}
+                          onClick={() => toggleResearched(item)}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <p className="researched-saved-description">
+                        {item.description}
+                      </p>
+                      <div className="researched-saved-actions">
+                        <a
+                          href={item.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Official page <ArrowUpRight size={14} />
+                        </a>
+                        <button
+                          className="text-button"
+                          onClick={() => exportCalendar([item])}
+                        >
+                          <CalendarDays size={14} /> Export deadline
+                        </button>
+                      </div>
+                    </section>
+                  ))}
                   {savedItems.map((o) => {
                     const s = saved.find((s) => s.opportunityId === o.id)!;
                     return (
@@ -1237,7 +1379,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 <Empty
                   icon={<Bookmark size={30} />}
                   title="Keep a possibility close."
-                  text="Tap the bookmark on an opportunity to save it here and start a preparation checklist."
+                  text="Tap the bookmark on an opportunity to keep it here. Research-backed deadlines will also appear in your calendar."
                   action={() => navigate("discover")}
                   label="Explore opportunities"
                 />
@@ -1255,12 +1397,9 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                     place.
                   </p>
                 </div>
-                <button
-                  className="secondary"
-                  onClick={() => setIntegration(true)}
-                >
-                  <Plus size={15} /> Connect a calendar
-                </button>
+                <span className="storage-status is-connected">
+                  <CalendarDays size={14} /> In-app calendar
+                </span>
               </div>
               <div className="calendar-layout">
                 <section className="calendar-card">
@@ -1326,27 +1465,32 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                       (_, i) => {
                         const day = i + 1;
                         const key = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                        const events = savedItems
-                          .flatMap((o) => [
-                            { o, type: "Apply", date: o.deadline },
-                            { o, type: "Event", date: o.eventDate },
-                          ])
-                          .filter((e) => e.date.startsWith(key));
+                        const events = calendarEntries.filter(
+                          (entry) => entry.date === key,
+                        );
                         return (
                           <div className="calendar-day" key={day}>
                             <span>{day}</span>
                             {events.map((e) => (
                               <button
-                                key={e.o.id + e.type}
+                                key={e.id}
                                 className={
-                                  e.type === "Apply"
+                                  e.label.startsWith("Deadline:")
                                     ? "apply-event"
                                     : "date-event"
                                 }
-                                onClick={() => setSelected(e.o)}
-                                title={`Sample ${e.type}: ${e.o.title}`}
+                                onClick={() =>
+                                  "sample" in e
+                                    ? setSelected(e.sample)
+                                    : window.open(
+                                        e.sourceUrl,
+                                        "_blank",
+                                        "noopener,noreferrer",
+                                      )
+                                }
+                                title={e.label}
                               >
-                                {e.type}: {e.o.kind}
+                                {e.label}
                               </button>
                             ))}
                           </div>
@@ -1356,11 +1500,42 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   </div>
                   <div className="calendar-legend">
                     <span>
-                      <i /> Sample deadline
+                      <i /> Application deadline
                     </span>
                     <span>
-                      <i /> Sample event
+                      <i /> Sample event date
                     </span>
+                  </div>
+                  <div className="calendar-agenda">
+                    <h3>This month</h3>
+                    {monthlyCalendarEntries.length ? (
+                      monthlyCalendarEntries.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() =>
+                            "sample" in entry
+                              ? setSelected(entry.sample)
+                              : window.open(
+                                  entry.sourceUrl,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                )
+                          }
+                        >
+                          <strong>
+                            {new Intl.DateTimeFormat("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              timeZone: "UTC",
+                            }).format(new Date(`${entry.date}T12:00:00Z`))}
+                          </strong>
+                          <span>{entry.label}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p>No interested deadlines or event dates this month.</p>
+                    )}
                   </div>
                 </section>
                 <aside className="calendar-aside">
@@ -1369,13 +1544,15 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   </div>
                   <h3>Plan a little ahead.</h3>
                   <p>
-                    Export your saved sample dates to a calendar file. Review
-                    the dates before importing.
+                    Opportunities you mark Interested appear here automatically.
+                    Check official pages for exact cutoff times.
                   </p>
                   <button
                     className="primary"
-                    disabled={!savedItems.length}
-                    onClick={() => exportCalendar(savedItems)}
+                    disabled={!savedItems.length && !researchedSaved.length}
+                    onClick={() =>
+                      exportCalendar([...savedItems, ...researchedSaved])
+                    }
                   >
                     <Download size={15} /> Export deadlines
                   </button>
@@ -1387,10 +1564,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                     Export event dates
                   </button>
                   <div className="aside-note">
-                    <strong>Calendar connection comes next.</strong>
+                    <strong>Your in-app calendar is ready.</strong>
                     <p>
-                      Direct Google Calendar sync is not connected. No calendar
-                      events are created automatically.
+                      Interested deadlines stay in this account. Export a file
+                      if you also want them in another calendar.
                     </p>
                   </div>
                 </aside>

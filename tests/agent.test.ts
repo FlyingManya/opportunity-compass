@@ -327,7 +327,11 @@ test("model adapters parse text and accept only safe cited links", () => {
 function memoryDatabase() {
   const collections = new Map<string, any[]>();
   const same = (record: any, query: any) =>
-    Object.entries(query).every(([key, value]) => record[key] === value);
+    Object.entries(query).every(([key, value]) =>
+      value && typeof value === "object" && "$gte" in value
+        ? record[key] >= (value as { $gte: string }).$gte
+        : record[key] === value,
+    );
   return {
     collection(name: string) {
       if (!collections.has(name)) collections.set(name, []);
@@ -336,6 +340,11 @@ function memoryDatabase() {
         async insertOne(value: any) {
           rows.push(structuredClone(value));
           return {};
+        },
+        async deleteOne(query: any) {
+          const index = rows.findIndex((row) => same(row, query));
+          if (index >= 0) rows.splice(index, 1);
+          return { deletedCount: index >= 0 ? 1 : 0 };
         },
         async findOne(query: any) {
           return structuredClone(rows.find((row) => same(row, query)) || null);
@@ -387,6 +396,36 @@ function memoryDatabase() {
     },
   } as unknown as Db;
 }
+test("researched opportunities save per account and can be removed", async () => {
+  const db = memoryDatabase();
+  const sourceUrl = "https://official.example.org/ai-event";
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl,
+    title: "AI Research Challenge",
+    organizer: "Official organizer",
+    description: "A real research competition.",
+    deadline: "2099-12-31",
+  });
+  const call = (userId: string, method: string) =>
+    handleAgent(
+      db,
+      userId,
+      emptyProfile,
+      "agent/interested",
+      method,
+      async () => ({ sourceUrl }),
+    );
+  assert.equal((await call("bob", "POST")).status, 404);
+  const saved = await (await call("alice", "POST")).json();
+  assert.equal(saved.item.title, "AI Research Challenge");
+  assert.equal((await (await call("bob", "GET")).json()).items.length, 0);
+  assert.equal((await (await call("alice", "GET")).json()).items.length, 1);
+  await call("bob", "DELETE");
+  assert.equal((await (await call("alice", "GET")).json()).items.length, 1);
+  await call("alice", "DELETE");
+  assert.equal((await (await call("alice", "GET")).json()).items.length, 0);
+});
 test("generated status artwork is private to its owner", async () => {
   const db = memoryDatabase();
   const id = "a".repeat(64);
