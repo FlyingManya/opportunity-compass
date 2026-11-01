@@ -19,21 +19,9 @@ import {
 import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
+import { matchedDiscoverySource } from "./discovery-source";
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
-function sameSource(left: string, right: string) {
-  const canonical = (value: string) => {
-    const url = new URL(value);
-    return `${url.hostname.replace(/^www\./, "")}${url.pathname.replace(/\/$/, "")}`;
-  };
-  return canonical(left) === canonical(right);
-}
-function sameHost(left: string, right: string) {
-  return (
-    new URL(left).hostname.replace(/^www\./, "") ===
-    new URL(right).hostname.replace(/^www\./, "")
-  );
-}
 async function allowed(db: Db, userId: string, action: string) {
   const bucket = Math.floor(Date.now() / 900000);
   const record = await db.collection("rate_limits").findOneAndUpdate(
@@ -236,22 +224,15 @@ export async function handleAgent(
             skipped.deadline++;
             continue;
           }
-          const url = publicLink(item.sourceUrl);
-          const sourceFound =
-            !!url &&
-            result.sources.some(
-              (source) =>
-                sameSource(source.url, url) ||
-                (message.includes(url) && sameHost(source.url, url)),
-            );
-          if (!url || !sourceFound) {
+          const url = matchedDiscoverySource(
+            item.sourceUrl,
+            item.title,
+            result.sources,
+            message,
+          );
+          if (!url) {
             skipped.source++;
-            console.info("Opportunity source mismatch", {
-              sameHost:
-                !!url &&
-                result.sources.some((source) => sameHost(source.url, url)),
-              mentioned: !!url && message.includes(url),
-            });
+            console.info("Opportunity source mismatch");
             continue;
           }
           await discoveries.updateOne(

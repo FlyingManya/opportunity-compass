@@ -19,6 +19,7 @@ import {
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
+import { matchedDiscoverySource } from "../src/lib/discovery-source";
 import { emptyProfile } from "../src/lib/types";
 import {
   emptyAgentPreferences,
@@ -43,6 +44,42 @@ test("shared URLs reject executable schemes, credentials, local addresses and lo
     "Website",
   );
   assert.equal(platformFor("https://lnkd.in/abc"), "LinkedIn");
+});
+test("research cards use exact official search pages when the model varies the URL", () => {
+  const source = {
+    title: "Bloomberg x WiCyS 2026 CTF Application Open",
+    url: "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
+  };
+  assert.equal(
+    matchedDiscoverySource(
+      "https://www.wicys.org/event/bloomberg-wicys-2026-ctf/",
+      "Bloomberg x WiCyS 2026 CTF",
+      [source],
+      "Find women in tech competitions",
+    ),
+    source.url,
+  );
+  assert.equal(
+    matchedDiscoverySource(
+      "https://www.wicys.org/event/unrelated/",
+      "Unrelated scholarship",
+      [source],
+      "Find scholarships",
+    ),
+    null,
+  );
+  assert.equal(
+    matchedDiscoverySource(
+      "https://www.wicys.org/event/bloomberg-wicys-2026-ctf/",
+      "Bloomberg x WiCyS 2026 CTF",
+      [
+        source,
+        { ...source, url: "https://www.wicys.org/other/bloomberg-ctf/" },
+      ],
+      "Find women in tech competitions",
+    ),
+    null,
+  );
 });
 test("incoming phone share preserves a caption and extracts its link", () => {
   const draft = sharedDraft({
@@ -622,6 +659,7 @@ test("discovery saves only cited opportunities with future deadlines for the cur
       reason: "Unknown",
     },
   ];
+  let citedUrl = "https://official.example.org/apply/?utm_source=search";
   globalThis.fetch = (async () =>
     Response.json({
       content: [
@@ -632,7 +670,7 @@ test("discovery saves only cited opportunities with future deadlines for the cur
             {
               type: "web_search_result_location",
               title: "Official",
-              url: "https://official.example.org/apply/?utm_source=search",
+              url: citedUrl,
             },
           ],
         },
@@ -657,6 +695,35 @@ test("discovery saves only cited opportunities with future deadlines for the cur
       .toArray();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].title, "Future program");
+    citedUrl = "https://official.example.org/women-tech-event";
+    opportunities.splice(0, opportunities.length, {
+      title: "Women in tech event",
+      organizer: "Organizer",
+      description: "A second event",
+      deadline: "2999-02-01",
+      sourceUrl: citedUrl,
+      reason: "Matches the new request",
+    });
+    const next = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: "Find a women in tech event" }),
+    );
+    assert.equal((await next.json()).added, 1);
+    assert.deepEqual(
+      (
+        await db
+          .collection("discovered_opportunities")
+          .find({ userId: "alice" })
+          .toArray()
+      )
+        .map((item) => item.title)
+        .sort(),
+      ["Future program", "Women in tech event"],
+    );
     assert.equal(
       (
         await db

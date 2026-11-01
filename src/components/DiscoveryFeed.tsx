@@ -16,18 +16,25 @@ export default function DiscoveryFeed() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    fetch("/api/agent/discoveries", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((body) => {
-        if (active)
-          setItems(Array.isArray(body.opportunities) ? body.opportunities : []);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    function refresh() {
+      fetch("/api/agent/discoveries", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((body) => {
+          if (active)
+            setItems(
+              Array.isArray(body.opportunities) ? body.opportunities : [],
+            );
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }
+    refresh();
+    window.addEventListener("focus", refresh);
     return () => {
       active = false;
+      window.removeEventListener("focus", refresh);
     };
   }, []);
   return (
