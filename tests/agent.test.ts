@@ -25,6 +25,7 @@ import {
   uniqueOpportunities,
 } from "../src/lib/opportunity-duplicates";
 import { emptyProfile } from "../src/lib/types";
+import { quickLookFallback, parseQuickLookReply } from "../src/lib/quick-look";
 import {
   emptyAgentPreferences,
   type AgentMessage,
@@ -48,6 +49,28 @@ test("shared URLs reject executable schemes, credentials, local addresses and lo
     "Website",
   );
   assert.equal(platformFor("https://lnkd.in/abc"), "LinkedIn");
+});
+test("Quick Look uses the person's field and résumé text instead of fixed sample topics", () => {
+  const medical = quickLookFallback({
+    ...emptyProfile,
+    profession: "Medical student",
+    interests: ["Biology"],
+  });
+  assert.ok(medical.some((item) => item.label === "Medical research"));
+  assert.ok(medical.some((item) => item.label === "Biology research"));
+  assert.ok(!medical.some((item) => item.label === "Developer roles"));
+  const fromResume = quickLookFallback(
+    emptyProfile,
+    "",
+    "Clinical research experience",
+  );
+  assert.ok(fromResume.some((item) => item.label === "Medical research"));
+  assert.deepEqual(
+    parseQuickLookReply(
+      '["Research grants","Research grants","Clinical fellowships"]',
+    ).map((item) => item.label),
+    ["Research grants", "Clinical fellowships"],
+  );
 });
 test("research cards use exact official search pages when the model varies the URL", () => {
   const source = {

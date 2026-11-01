@@ -20,6 +20,7 @@ import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
+import { parseQuickLookReply, quickLookFallback } from "./quick-look";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -147,6 +148,106 @@ export async function handleAgent(
     "discovered_opportunities",
   );
   const statusImages = db.collection("opportunity_status_images");
+  if (path === "agent/quick-look" && (method === "GET" || method === "POST")) {
+    const preferences = (await briefs.findOne({ userId }))?.preferences as
+      AgentPreferences | undefined;
+    const resume = await db
+      .collection<{
+        userId: string;
+        type: string;
+        data: Binary;
+        updatedAt?: Date;
+      }>("resumes")
+      .findOne({ userId });
+    const resumeText =
+      resume?.type === "text/plain"
+        ? Buffer.from(resume.data.buffer).toString("utf8").slice(0, 4000)
+        : "";
+    const fallback = quickLookFallback(profile, preferences?.brief, resumeText);
+    const signature = tokenHash(
+      JSON.stringify({
+        profession: profile.profession,
+        skills: profile.skills,
+        interests: profile.interests,
+        experience: profile.experience,
+        brief: preferences?.brief || "",
+        consent: !!preferences?.useMetaContext,
+        resumeConsent: !!preferences?.useResume,
+        resumeUpdatedAt: resume?.updatedAt?.toISOString() || "",
+      }),
+    );
+    const cache = db.collection("quick_look_topics");
+    const saved = await cache.findOne({ userId });
+    if (method === "GET")
+      return json({
+        topics: saved?.signature === signature ? saved.topics : fallback,
+        stale:
+          saved?.signature !== signature &&
+          !!preferences?.useMetaContext &&
+          !!process.env.MODEL_API_KEY,
+      });
+    if (saved?.signature === signature) return json({ topics: saved.topics });
+    if (!preferences?.useMetaContext || !process.env.MODEL_API_KEY)
+      return json({ topics: fallback });
+    if (!(await allowed(db, userId, "quick-look")))
+      return json({ topics: fallback });
+    try {
+      const text = `Suggest 4 to 6 short opportunity topics tailored to this person. Return ONLY a JSON array of strings, each 1 to 3 words. Use their actual field and interests; for a medical student, prefer research, biology, clinical programs and medical competitions over software jobs. Do not invent events or deadlines.\nProfile: ${JSON.stringify({ profession: profile.profession, skills: profile.skills, interests: profile.interests, experience: profile.experience, brief: preferences.brief })}\n${preferences.useResume && resumeText ? `Résumé text: ${JSON.stringify(resumeText.slice(0, 8000))}` : ""}`;
+      const input: unknown =
+        preferences.useResume && resume?.type === "application/pdf"
+          ? [
+              {
+                role: "user",
+                content: [
+                  { type: "input_text", text },
+                  {
+                    type: "input_file",
+                    filename: "resume.pdf",
+                    file_data: `data:application/pdf;base64,${Buffer.from(resume.data.buffer).toString("base64")}`,
+                  },
+                ],
+              },
+            ]
+          : text;
+      const response = await fetch("https://api.meta.ai/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.MODEL_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.META_TEXT_MODEL || "muse-spark-1.3",
+          input,
+          store: false,
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) throw new Error(`Meta status ${response.status}`);
+      const body = await response.json();
+      const reply = (body.output || [])
+        .filter((item: { type: string }) => item.type === "message")
+        .flatMap(
+          (item: { content?: { type: string; text?: string }[] }) =>
+            item.content || [],
+        )
+        .filter((part: { type: string }) => part.type === "output_text")
+        .map((part: { text?: string }) => part.text || "")
+        .join("\n");
+      const topics = parseQuickLookReply(reply);
+      if (topics.length < 3) throw new Error("Empty topics");
+      await cache.updateOne(
+        { userId },
+        { $set: { userId, signature, topics, updatedAt: new Date() } },
+        { upsert: true },
+      );
+      return json({ topics });
+    } catch (error) {
+      console.warn("Quick Look generation unavailable", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return json({ topics: fallback });
+    }
+  }
   if (path.startsWith("agent/status-image/") && method === "GET") {
     const id = path.slice("agent/status-image/".length);
     if (!/^[a-f0-9]{64}$/.test(id))
@@ -292,12 +393,7 @@ export async function handleAgent(
     });
   }
   if (path === "agent/state" && method === "GET") {
-    const [recent, imports, settings] = await Promise.all([
-      messages
-        .find({ userId }, { projection: { _id: 0, userId: 0 } })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .toArray(),
+    const [imports, settings] = await Promise.all([
       leads
         .find({ userId }, { projection: { _id: 0, userId: 0 } })
         .sort({ createdAt: -1 })
@@ -305,12 +401,33 @@ export async function handleAgent(
         .toArray(),
       briefs.findOne({ userId }, { projection: { _id: 0, userId: 0 } }),
     ]);
+    const recent = await messages
+      .find(
+        {
+          userId,
+          ...(settings?.chatStartedAt
+            ? { createdAt: { $gte: settings.chatStartedAt } }
+            : {}),
+        },
+        { projection: { _id: 0, userId: 0 } },
+      )
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
     return json({
       messages: recent.reverse(),
       leads: imports,
       preferences: settings?.preferences || emptyAgentPreferences,
       mode: agentMode(),
     });
+  }
+  if (path === "agent/chat/new" && method === "POST") {
+    await briefs.updateOne(
+      { userId },
+      { $set: { chatStartedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    return json({ ok: true });
   }
   if (path === "agent/preferences" && method === "PUT") {
     const preferences = agentPreferencesSchema.parse(await input());
@@ -349,13 +466,8 @@ export async function handleAgent(
           "Your note is saved privately. AI replies will be available once a model is connected.",
       });
     try {
-      const [settings, recent, imports] = await Promise.all([
+      const [settings, imports] = await Promise.all([
         briefs.findOne({ userId }),
-        messages
-          .find({ userId }, { projection: { _id: 0, userId: 0 } })
-          .sort({ createdAt: -1 })
-          .limit(12)
-          .toArray(),
         leads
           .find(
             { userId, archived: false },
@@ -365,6 +477,19 @@ export async function handleAgent(
           .limit(8)
           .toArray(),
       ]);
+      const recent = await messages
+        .find(
+          {
+            userId,
+            ...(settings?.chatStartedAt
+              ? { createdAt: { $gte: settings.chatStartedAt } }
+              : {}),
+          },
+          { projection: { _id: 0, userId: 0 } },
+        )
+        .sort({ createdAt: -1 })
+        .limit(12)
+        .toArray();
       const discover = agentMode().search && isDiscoveryRequest(message);
       const result = await askAgent(
         (settings?.preferences || emptyAgentPreferences) as AgentPreferences,

@@ -1,6 +1,7 @@
 "use client";
 import AgentPanel from "./AgentPanel";
 import DiscoveryFeed from "./DiscoveryFeed";
+import QuickLook from "./QuickLook";
 import { useState, useEffect, useRef } from "react";
 import {
   MessageCircle,
@@ -130,6 +131,8 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const fileRef = useRef<HTMLInputElement>(null),
     searchRef = useRef<HTMLInputElement>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [openStatusSignal, setOpenStatusSignal] = useState(0);
+  const [agentPrompt, setAgentPrompt] = useState("");
   const results = filterCatalog(
     catalog,
     category,
@@ -819,7 +822,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
           </div>
         </header>
         <main className="main-content">
-          {view === "agent" && <AgentPanel />}
+          {view === "agent" && (
+            <AgentPanel
+              initialPrompt={agentPrompt}
+              onPromptConsumed={() => setAgentPrompt("")}
+            />
+          )}
           {view === "discover" && (
             <>
               <div className="greeting-row">
@@ -839,12 +847,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 <button
                   className="secondary stories-launch"
                   onClick={() => {
-                    setStory(0);
-                    setPlaying(false);
+                    setOpenStatusSignal((value) => value + 1);
                   }}
                 >
-                  <Play size={15} /> Browse stories{" "}
-                  <span className="new-tag">NEW</span>
+                  <Play size={15} /> View stories
                 </button>
               </div>
               <div className="hero-grid">
@@ -940,53 +946,14 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   </div>
                 </section>
               </div>
-              <section
-                className="stories-strip"
-                aria-label="Opportunity stories"
-              >
-                <div>
-                  <span className="eyebrow">A QUICK LOOK</span>
-                  <h3>Possibilities, one at a time.</h3>
-                </div>
-                <div className="story-circles">
-                  {catalog.slice(0, 6).map((o) => (
-                    <button
-                      key={o.id}
-                      onClick={() => {
-                        setCategory("all");
-                        setQuery("");
-                        setMonth("");
-                        setFormat("all");
-                        setStory(
-                          filterCatalog(
-                            catalog,
-                            "all",
-                            "",
-                            "",
-                            "deadline",
-                            profile,
-                          ).findIndex((x) => x.id === o.id),
-                        );
-                        setPlaying(false);
-                      }}
-                    >
-                      <span className={`story-ring ${o.color}`}>
-                        <Art o={o} />
-                      </span>
-                      <small>
-                        {o.kind.length > 16 ? o.kind.split(" ")[0] : o.kind}
-                      </small>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  className="icon-button story-more"
-                  aria-label="Browse all stories"
-                  onClick={() => setStory(0)}
-                >
-                  <ArrowRight size={19} />
-                </button>
-              </section>
+              <QuickLook
+                profile={profile}
+                resume={user.resume}
+                onChoose={(prompt) => {
+                  setAgentPrompt(prompt);
+                  navigate("agent");
+                }}
+              />
               <section className="search-card">
                 <div className="search-input">
                   <Search size={19} />
@@ -1084,7 +1051,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   {profile.onboarded ? "Profile relevance" : "Explore all"}
                 </span>
               </div>
-              <DiscoveryFeed />
+              <DiscoveryFeed openStatusSignal={openStatusSignal} />
               <div className="sample-note">
                 <span className="sample-dot" />
                 <p>

@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   MessageCircle,
   Plus,
+  RotateCcw,
   Send,
   Settings2,
   Smartphone,
@@ -43,7 +44,13 @@ async function request(path: string, method = "GET", data?: unknown) {
   if (!response.ok) throw new Error(result.error || "Please try again.");
   return result;
 }
-export default function AgentPanel() {
+export default function AgentPanel({
+  initialPrompt = "",
+  onPromptConsumed,
+}: {
+  initialPrompt?: string;
+  onPromptConsumed?: () => void;
+}) {
   const [tab, setTab] = useState<"chat" | "links" | "brief">("chat");
   const [mode, setMode] = useState<AgentMode>({
     connected: false,
@@ -74,6 +81,14 @@ export default function AgentPanel() {
   const end = useRef<HTMLDivElement>(null);
   const importPanel = useRef<HTMLDivElement>(null);
   const priorFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (initialPrompt) {
+      setTab("chat");
+      setMessage(initialPrompt);
+      composer.current?.focus();
+      onPromptConsumed?.();
+    }
+  }, [initialPrompt, onPromptConsumed]);
 
   function closeImport() {
     if (busy) return;
@@ -178,6 +193,23 @@ export default function AgentPanel() {
       ]);
       setMessage("");
       setNotice(result.notice || "");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function startFresh() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await request("chat/new", "POST");
+      setMessages([]);
+      setNotice(
+        "Fresh conversation started. Your earlier messages remain saved in your account.",
+      );
+      composer.current?.focus();
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -366,6 +398,17 @@ export default function AgentPanel() {
               aria-labelledby="agent-chat-tab"
             >
               <div className="agent-conversation">
+                <div className="agent-chat-toolbar">
+                  <span>Conversation</span>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={startFresh}
+                    disabled={busy || !messages.length}
+                  >
+                    <RotateCcw size={15} /> New chat
+                  </button>
+                </div>
                 <div
                   className="agent-messages"
                   aria-label="Your conversation"

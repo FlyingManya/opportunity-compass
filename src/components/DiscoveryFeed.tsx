@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Clock,
   LoaderCircle,
-  Play,
   Sparkles,
   X,
 } from "lucide-react";
@@ -46,7 +45,11 @@ function formatDeadline(deadline: string) {
   }).format(new Date(`${deadline}T12:00:00Z`));
 }
 
-export default function DiscoveryFeed() {
+export default function DiscoveryFeed({
+  openStatusSignal = 0,
+}: {
+  openStatusSignal?: number;
+}) {
   const [items, setItems] = useState<Discovery[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -54,6 +57,7 @@ export default function DiscoveryFeed() {
   const [targetTotal, setTargetTotal] = useState(0);
   const [statusIndex, setStatusIndex] = useState<number | null>(null);
   const [statusError, setStatusError] = useState("");
+  const [statusNotice, setStatusNotice] = useState("");
   useEffect(() => {
     let active = true;
     function refresh() {
@@ -81,6 +85,11 @@ export default function DiscoveryFeed() {
   const currentStatus = statusIndex === null ? null : statuses[statusIndex];
   const currentIndex = statusIndex ?? 0;
   useEffect(() => {
+    if (!openStatusSignal) return;
+    if (statuses.length) setStatusIndex(0);
+    else setStatusError("Select Update status to create your first stories.");
+  }, [openStatusSignal]);
+  useEffect(() => {
     if (statusIndex === null) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -104,6 +113,7 @@ export default function DiscoveryFeed() {
     setUpdating(true);
     setProgress(0);
     setStatusError("");
+    setStatusNotice("");
     let completed = 0;
     const missing = items.filter((item) => !item.statusReady);
     const targets = (missing.length ? missing : items).slice(0, 4);
@@ -159,7 +169,9 @@ export default function DiscoveryFeed() {
         "Muse Image is unavailable for this Meta account. Statuses use clearly labelled template artwork for now.",
       );
     if (outcomes.some((outcome) => outcome.status === "fulfilled"))
-      setStatusIndex(0);
+      setStatusNotice(
+        "Stories are ready. Open View stories at the top of the page.",
+      );
     setUpdating(false);
   }
   return (
@@ -171,15 +183,6 @@ export default function DiscoveryFeed() {
         <h2>Researched for you</h2>
         {!!items.length && (
           <div className="discovery-status-actions">
-            {!!statuses.length && (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setStatusIndex(0)}
-              >
-                <Play size={15} /> View status
-              </button>
-            )}
             <button
               type="button"
               className="secondary"
@@ -202,17 +205,14 @@ export default function DiscoveryFeed() {
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
-      {!!items.length && (
-        <p className="status-helper">
-          Update status creates illustrated stories for up to four current
-          opportunities at a time with Muse Image. Click again to add more. If
-          Meta is unavailable, the stories use template artwork and say so. Your
-          opportunity details stay as text over the artwork.
-        </p>
-      )}
       {statusError && (
         <p className="status-error" role="alert">
           {statusError}
+        </p>
+      )}
+      {statusNotice && (
+        <p className="status-notice" role="status">
+          {statusNotice}
         </p>
       )}
       {!loading && !items.length && (
