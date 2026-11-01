@@ -401,6 +401,7 @@ export async function askAgent(
       discover,
       status: response.status,
       type: errorBody?.error?.type || "unknown",
+      detail: String(errorBody?.error?.message || "").slice(0, 300),
     });
     throw new Error("MODEL_UNAVAILABLE");
   }
