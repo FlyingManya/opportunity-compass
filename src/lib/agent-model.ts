@@ -136,14 +136,14 @@ export function parseAgentReply(body: Record<string, any>, meta: boolean) {
   if (typeof text !== "string" || !text.trim()) throw new Error("EMPTY_REPLY");
   const sources = meta
     ? (body.output || [])
-        .flatMap((item: any) => item.content || [])
-        .flatMap((part: any) => part.annotations || [])
-        .filter(
-          (a: any) =>
-            a.type === "url_citation" &&
-            typeof a.url === "string" &&
-            publicLink(a.url),
+        .flatMap((item: any) =>
+          item.type === "web_search_call"
+            ? item.results || []
+            : (item.content || []).flatMap(
+                (part: any) => part.annotations || [],
+              ),
         )
+        .filter((a: any) => typeof a.url === "string" && publicLink(a.url))
         .map((a: any) => ({
           title: String(a.title || new URL(a.url).hostname).slice(0, 180),
           url: publicLink(a.url)!,
@@ -353,6 +353,7 @@ export async function askAgent(
                     search_context_size: discover ? "high" : "medium",
                   },
                 ],
+                ...(discover ? { include: ["web_search_call.results"] } : {}),
                 reasoning: { effort: discover ? "medium" : "low" },
                 max_output_tokens: 3000,
                 store: false,

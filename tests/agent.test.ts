@@ -157,6 +157,13 @@ test("model adapters parse text and accept only safe cited links", () => {
     {
       output: [
         {
+          type: "web_search_call",
+          results: [
+            { title: "Organizer", url: "https://organizer.example.org/apply" },
+            { title: "Blocked", url: "http://127.0.0.1/private" },
+          ],
+        },
+        {
           type: "message",
           content: [
             {
@@ -181,8 +188,9 @@ test("model adapters parse text and accept only safe cited links", () => {
     },
     true,
   );
-  assert.equal(result.sources.length, 1);
-  assert.equal(result.sources[0].url, "https://example.org/");
+  assert.equal(result.sources.length, 2);
+  assert.equal(result.sources[0].url, "https://organizer.example.org/apply");
+  assert.equal(result.sources[1].url, "https://example.org/");
   assert.equal(
     parseAgentReply(
       { choices: [{ message: { content: "An open-model reply" } }] },
@@ -495,6 +503,7 @@ test("model requests select the configured transport and do not expose keys in s
     assert.equal(calls[4].body.input.length, 1);
     assert.equal(calls[4].body.input[0].content, "Find opportunities");
     assert.equal(calls[4].body.tools[0].search_context_size, "high");
+    assert.deepEqual(calls[4].body.include, ["web_search_call.results"]);
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
     await askAgent(
