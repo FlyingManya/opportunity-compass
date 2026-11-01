@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Binary, type Db } from "mongodb";
+import { tokenHash } from "../src/lib/security";
 import {
   publicLink,
   platformFor,
@@ -26,7 +27,6 @@ import {
 } from "../src/lib/opportunity-duplicates";
 import { emptyProfile } from "../src/lib/types";
 import {
-  quickLookFallback,
   parseQuickLookReply,
   quickLookMetaPrompt,
 } from "../src/lib/quick-look";
@@ -54,21 +54,7 @@ test("shared URLs reject executable schemes, credentials, local addresses and lo
   );
   assert.equal(platformFor("https://lnkd.in/abc"), "LinkedIn");
 });
-test("Quick Look uses the person's field and résumé text instead of fixed sample topics", () => {
-  const medical = quickLookFallback({
-    ...emptyProfile,
-    profession: "Medical student",
-    interests: ["Biology"],
-  });
-  assert.ok(medical.some((item) => item.label === "Medical research"));
-  assert.ok(medical.some((item) => item.label === "Biology research"));
-  assert.ok(!medical.some((item) => item.label === "Developer roles"));
-  const fromResume = quickLookFallback(
-    emptyProfile,
-    "",
-    "Clinical research experience",
-  );
-  assert.ok(fromResume.some((item) => item.label === "Medical research"));
+test("Quick Look parses only unique Meta-generated topics", () => {
   assert.deepEqual(
     parseQuickLookReply(
       '["Research grants","Research grants","Clinical fellowships"]',
@@ -425,6 +411,66 @@ test("researched opportunities save per account and can be removed", async () =>
   assert.equal((await (await call("alice", "GET")).json()).items.length, 1);
   await call("alice", "DELETE");
   assert.equal((await (await call("alice", "GET")).json()).items.length, 0);
+});
+test("Quick Look shows no coded suggestions without Meta consent", async () => {
+  const db = memoryDatabase();
+  const profile = {
+    ...emptyProfile,
+    profession: "Medical student",
+    interests: ["Biology"],
+  };
+  const get = await handleAgent(
+    db,
+    "alice",
+    profile,
+    "agent/quick-look",
+    "GET",
+    async () => null,
+  );
+  assert.deepEqual((await get.json()).topics, []);
+  const post = await handleAgent(
+    db,
+    "alice",
+    profile,
+    "agent/quick-look",
+    "POST",
+    async () => null,
+  );
+  assert.deepEqual((await post.json()).topics, []);
+});
+test("opportunity images are account-scoped and cached without another Meta call", async () => {
+  const db = memoryDatabase();
+  const sourceUrl = "https://official.example.org/ai-hackathon";
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl,
+    title: "AI Hackathon",
+    organizer: "Official organizer",
+    description: "Build AI projects",
+    deadline: "2099-12-31",
+  });
+  const id = tokenHash(sourceUrl);
+  await db.collection("opportunity_card_images").insertOne({
+    userId: "alice",
+    id,
+    sourceUrl,
+    data: { buffer: new Uint8Array([82, 73, 70, 70]) },
+  });
+  const call = (userId: string, path: string, method: string) =>
+    handleAgent(db, userId, emptyProfile, path, method, async () => ({
+      sourceUrl,
+    }));
+  assert.equal(
+    (await call("bob", `agent/card-image/${id}`, "GET")).status,
+    404,
+  );
+  assert.equal((await call("bob", "agent/card-image", "POST")).status, 404);
+  const cached = await (await call("alice", "agent/card-image", "POST")).json();
+  assert.equal(cached.imageUrl, `/api/agent/card-image/${id}`);
+  assert.equal(
+    (await call("alice", `agent/card-image/${id}`, "GET")).status,
+    200,
+  );
 });
 test("generated status artwork is private to its owner", async () => {
   const db = memoryDatabase();

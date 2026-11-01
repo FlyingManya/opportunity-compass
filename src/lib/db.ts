@@ -43,6 +43,9 @@ export async function database() {
             .collection("saved_researched")
             .createIndex({ userId: 1, sourceUrl: 1 }, { unique: true }),
           db
+            .collection("opportunity_card_images")
+            .createIndex({ userId: 1, id: 1 }, { unique: true }),
+          db
             .collection("opportunity_status_images")
             .createIndex({ userId: 1, id: 1 }, { unique: true }),
           db

@@ -21,11 +21,7 @@ import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
-import {
-  parseQuickLookReply,
-  quickLookFallback,
-  quickLookMetaPrompt,
-} from "./quick-look";
+import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -138,6 +134,47 @@ async function generateStatusImage(prompt: string) {
     throw new Error("META_IMAGE_FAILED");
   return bytes;
 }
+async function generateCardImage(opportunity: {
+  title: unknown;
+  organizer: unknown;
+  description: unknown;
+  sourceUrl: unknown;
+}) {
+  const key = process.env.MODEL_API_KEY;
+  if (!key) return null;
+  const prompt = `Create a polished, landscape editorial image for this specific opportunity card. Opportunity: ${String(opportunity.title).slice(0, 180)}. Organizer: ${String(opportunity.organizer).slice(0, 180)}. Official source URL: ${String(opportunity.sourceUrl).slice(0, 400)}. Description: ${String(opportunity.description).slice(0, 500)}. Use web and image search to check the organizer's official visual identity and the event context before drawing. Make the scene distinctly relevant to this event and organizer, with a clean central subject and rich variation across different opportunities. Include a logo only if you can verify its genuine design from the official source; otherwise omit it. No invented dates, prices, claims, UI, watermarks, or text. This is an illustration, not an official event poster.`;
+  const response = await fetch("https://api.meta.ai/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "muse-image-1.0",
+      prompt,
+      n: 1,
+      size: "1536x1024",
+      response_format: "b64_json",
+      output_format: "webp",
+      enable_image_search: true,
+      enable_web_search: true,
+    }),
+    signal: AbortSignal.timeout(55000),
+  });
+  if (!response.ok) {
+    console.warn("Muse Image card generation failed", {
+      status: response.status,
+      requestId: response.headers.get("x-request-id") || undefined,
+    });
+    return null;
+  }
+  const result = await response.json();
+  const encoded = result.data?.[0]?.b64_json;
+  if (typeof encoded !== "string") return null;
+  const bytes = Buffer.from(encoded, "base64");
+  return bytes.length && bytes.length <= 4 * 1024 * 1024 ? bytes : null;
+}
+
 export async function handleAgent(
   db: Db,
   userId: string,
@@ -153,6 +190,79 @@ export async function handleAgent(
     "discovered_opportunities",
   );
   const statusImages = db.collection("opportunity_status_images");
+  const cardImages = db.collection("opportunity_card_images");
+  if (path.startsWith("agent/card-image/") && method === "GET") {
+    const id = path.slice("agent/card-image/".length);
+    if (!/^[a-f0-9]{64}$/.test(id))
+      return json({ error: "Image not found." }, 404);
+    const image = await cardImages.findOne({ userId, id });
+    if (!image?.data) return json({ error: "Image not found." }, 404);
+    return new Response(new Uint8Array(image.data.buffer), {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+  if (path === "agent/card-image" && method === "POST") {
+    const body = (await input()) as { sourceUrl?: unknown };
+    if (
+      typeof body.sourceUrl !== "string" ||
+      body.sourceUrl.length > 2048 ||
+      !publicLink(body.sourceUrl)
+    )
+      return json({ error: "Choose an opportunity from your dashboard." }, 400);
+    const opportunity = await statusOpportunity(
+      db,
+      userId,
+      profile,
+      body.sourceUrl,
+    );
+    if (!opportunity)
+      return json({ error: "Opportunity not found on your dashboard." }, 404);
+    const id = statusId(body.sourceUrl);
+    const existing = await cardImages.findOne({ userId, id });
+    if (existing?.data)
+      return json({ imageUrl: `/api/agent/card-image/${id}` });
+    if (
+      existing?.attemptedAt &&
+      Date.now() - new Date(existing.attemptedAt).getTime() < 86400000
+    )
+      return json({ imageUrl: null, unavailable: true });
+    if (!(await allowed(db, userId, "card-image")))
+      return json({ error: "Image limit reached. Try later." }, 429);
+    try {
+      const bytes = await generateCardImage({
+        title: opportunity.title,
+        organizer: opportunity.organizer,
+        description: opportunity.description,
+        sourceUrl: body.sourceUrl,
+      });
+      await cardImages.updateOne(
+        { userId, id },
+        {
+          $set: {
+            userId,
+            id,
+            sourceUrl: body.sourceUrl,
+            data: bytes ? new Binary(bytes) : null,
+            attemptedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      return json({
+        imageUrl: bytes ? `/api/agent/card-image/${id}` : null,
+        unavailable: !bytes,
+      });
+    } catch (error) {
+      console.warn("Muse Image card unavailable", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return json({ imageUrl: null, unavailable: true });
+    }
+  }
   if (path === "agent/interested" && method === "GET") {
     const items = await db
       .collection<ResearchedSaved & { userId: string }>("saved_researched")
@@ -214,9 +324,14 @@ export async function handleAgent(
       resume?.type === "text/plain"
         ? Buffer.from(resume.data.buffer).toString("utf8").slice(0, 4000)
         : "";
-    const fallback = quickLookFallback(profile, preferences?.brief, resumeText);
     const hasSignals =
-      (!!preferences?.useProfile && !!fallback.length) ||
+      (!!preferences?.useProfile &&
+        !!(
+          profile.profession ||
+          profile.skills.length ||
+          profile.interests.length ||
+          profile.experience.length
+        )) ||
       !!preferences?.brief?.trim() ||
       (!!resume && !!preferences?.useResume);
     const signature = tokenHash(
@@ -236,7 +351,7 @@ export async function handleAgent(
     const saved = await cache.findOne({ userId });
     if (method === "GET")
       return json({
-        topics: saved?.signature === signature ? saved.topics : fallback,
+        topics: saved?.signature === signature ? saved.topics : [],
         stale:
           saved?.signature !== signature &&
           hasSignals &&
@@ -249,9 +364,9 @@ export async function handleAgent(
       !preferences?.useMetaContext ||
       !process.env.MODEL_API_KEY
     )
-      return json({ topics: fallback });
+      return json({ topics: [], unavailable: true });
     if (!(await allowed(db, userId, "quick-look")))
-      return json({ topics: fallback });
+      return json({ topics: [], unavailable: true });
     try {
       const text = quickLookMetaPrompt(profile, preferences, resumeText);
       const input: unknown =
@@ -306,7 +421,7 @@ export async function handleAgent(
       console.warn("Quick Look generation unavailable", {
         reason: error instanceof Error ? error.message : "unknown",
       });
-      return json({ topics: fallback });
+      return json({ topics: [], unavailable: true });
     }
   }
   if (path.startsWith("agent/status-image/") && method === "GET") {

@@ -46,6 +46,70 @@ function formatDeadline(deadline: string) {
   }).format(new Date(`${deadline}T12:00:00Z`));
 }
 
+function OpportunityCardArt({
+  item,
+  color,
+}: {
+  item: Discovery;
+  color: string;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "160px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node]);
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    fetch("/api/agent/card-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceUrl: item.sourceUrl }),
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (active) setImageUrl(body?.imageUrl || null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [visible, item.sourceUrl]);
+  return (
+    <div
+      ref={setNode}
+      className={`opportunity-card-image ${color}`}
+      role="img"
+      aria-label={
+        imageUrl
+          ? `Muse Image illustration for ${item.title}`
+          : `Opportunity card for ${item.title}`
+      }
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt="" loading="lazy" />
+      ) : (
+        <span className="opportunity-card-placeholder" aria-hidden="true">
+          <strong>{item.organizer.slice(0, 34)}</strong>
+          <span>{item.title.slice(0, 80)}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function DiscoveryFeed({
   openStatusSignal = 0,
   savedSourceUrls = [],
@@ -242,14 +306,7 @@ export default function DiscoveryFeed({
                     rel="noopener noreferrer"
                     aria-label={`Open official page for ${item.title}`}
                   >
-                    <div
-                      role="img"
-                      aria-label={`Illustration for ${appearance.kind}`}
-                      className="op-art"
-                      style={{
-                        backgroundPosition: `${appearance.art % 2 ? 100 : 0}% ${appearance.art > 1 ? 100 : 0}%`,
-                      }}
-                    />
+                    <OpportunityCardArt item={item} color={appearance.color} />
                   </a>
                   <span className="art-badge">
                     {item.provenance === "curated"

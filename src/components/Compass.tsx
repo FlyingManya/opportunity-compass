@@ -439,6 +439,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       if (user) {
         const b = await api("profile", "PUT", next);
         setUser(b.user);
+        void api("agent/quick-look", "POST").catch(() => {});
       } else setPreviewProfile(next);
       setOnboarding(false);
       setToast(

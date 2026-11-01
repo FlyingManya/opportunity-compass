@@ -3793,3 +3793,47 @@ h1 {
   color: #8e739e;
   overflow-wrap: anywhere;
 }
+
+.opportunity-card-image {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #d8c9ef, #f3e4f8);
+}
+.opportunity-card-image.peach {
+  background: linear-gradient(135deg, #f6c7a8, #ffe5d4);
+}
+.opportunity-card-image.mint {
+  background: linear-gradient(135deg, #aadbc6, #e5f6eb);
+}
+.opportunity-card-image.butter {
+  background: linear-gradient(135deg, #f2dba7, #fff1c5);
+}
+.opportunity-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.opportunity-card-placeholder {
+  padding: 24px;
+  max-width: 80%;
+  display: grid;
+  gap: 8px;
+  text-align: center;
+  color: #322948;
+  overflow-wrap: anywhere;
+}
+.opportunity-card-placeholder strong {
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.opportunity-card-placeholder span {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+}

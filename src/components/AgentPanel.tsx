@@ -232,6 +232,11 @@ export default function AgentPanel({
       setPreferences(result.preferences);
       setSources(result.preferences.sources.join("\n"));
       setNotice("Your search brief is saved privately.");
+      void fetch("/api/agent/quick-look", { method: "POST" })
+        .then(() =>
+          window.dispatchEvent(new Event("compass-quick-look-updated")),
+        )
+        .catch(() => {});
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
