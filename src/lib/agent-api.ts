@@ -96,8 +96,18 @@ async function generateStatusImage(prompt: string) {
     signal: AbortSignal.timeout(50000),
   });
   if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const error = errorBody?.error;
+    const message =
+      typeof error?.message === "string"
+        ? error.message.replaceAll(key, "[redacted]").slice(0, 300)
+        : undefined;
     console.error("Muse Image status generation failed", {
       status: response.status,
+      type: typeof error?.type === "string" ? error.type : undefined,
+      code: typeof error?.code === "string" ? error.code : undefined,
+      message,
+      requestId: response.headers.get("x-request-id") || undefined,
     });
     if ([402, 403, 404].includes(response.status)) return null;
     throw new Error("META_IMAGE_FAILED");
