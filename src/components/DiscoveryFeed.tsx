@@ -1,5 +1,14 @@
 "use client";
-import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  LoaderCircle,
+  Play,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Discovery = {
@@ -10,6 +19,7 @@ type Discovery = {
   deadline: string;
   reason: string;
   provenance?: "curated";
+  statusImageUrl?: string | null;
 };
 
 function cardAppearance(item: Discovery) {
@@ -37,6 +47,11 @@ function formatDeadline(deadline: string) {
 export default function DiscoveryFeed() {
   const [items, setItems] = useState<Discovery[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [targetTotal, setTargetTotal] = useState(0);
+  const [statusIndex, setStatusIndex] = useState<number | null>(null);
+  const [statusError, setStatusError] = useState("");
   useEffect(() => {
     let active = true;
     function refresh() {
@@ -60,16 +75,130 @@ export default function DiscoveryFeed() {
       window.removeEventListener("focus", refresh);
     };
   }, []);
+  const statuses = items.filter((item) => item.statusImageUrl);
+  const currentStatus = statusIndex === null ? null : statuses[statusIndex];
+  const currentIndex = statusIndex ?? 0;
+  useEffect(() => {
+    if (statusIndex === null) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setStatusIndex(null);
+      if (event.key === "ArrowRight")
+        setStatusIndex((index) =>
+          Math.min(statuses.length - 1, (index || 0) + 1),
+        );
+      if (event.key === "ArrowLeft")
+        setStatusIndex((index) => Math.max(0, (index || 0) - 1));
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [statusIndex, statuses.length]);
+  async function updateStatus() {
+    if (updating || !items.length) return;
+    setUpdating(true);
+    setProgress(0);
+    setStatusError("");
+    let completed = 0;
+    const missing = items.filter((item) => !item.statusImageUrl);
+    const targets = (missing.length ? missing : items).slice(0, 4);
+    setTargetTotal(targets.length);
+    const outcomes = await Promise.allSettled(
+      targets.map(async (item) => {
+        try {
+          const response = await fetch("/api/agent/status-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sourceUrl: item.sourceUrl }),
+            signal: AbortSignal.timeout(58000),
+          });
+          const body = await response.json();
+          if (!response.ok)
+            throw new Error(body.error || "Status generation failed.");
+          setItems((current) =>
+            current.map((entry) =>
+              entry.sourceUrl === item.sourceUrl
+                ? { ...entry, statusImageUrl: body.imageUrl }
+                : entry,
+            ),
+          );
+          return true;
+        } finally {
+          completed++;
+          setProgress(completed);
+        }
+      }),
+    );
+    const failures = outcomes.filter(
+      (outcome) => outcome.status === "rejected",
+    );
+    if (failures.length) {
+      const first = failures[0] as PromiseRejectedResult;
+      setStatusError(
+        first.reason instanceof Error
+          ? first.reason.message
+          : "Some images could not be created.",
+      );
+    }
+    if (outcomes.some((outcome) => outcome.status === "fulfilled"))
+      setStatusIndex(0);
+    setUpdating(false);
+  }
   return (
     <section
       aria-label="Your researched opportunities"
       className="discovery-feed"
     >
-      <h2>Researched for you</h2>
+      <div className="discovery-heading">
+        <h2>Researched for you</h2>
+        {!!items.length && (
+          <div className="discovery-status-actions">
+            {!!statuses.length && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setStatusIndex(0)}
+              >
+                <Play size={15} /> View status
+              </button>
+            )}
+            <button
+              type="button"
+              className="secondary"
+              onClick={updateStatus}
+              disabled={updating}
+            >
+              {updating ? (
+                <LoaderCircle size={15} className="status-spinner" />
+              ) : (
+                <Sparkles size={15} />
+              )}
+              {updating
+                ? `Creating ${progress}/${targetTotal}`
+                : "Update status"}
+            </button>
+          </div>
+        )}
+      </div>
       <p>
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
+      {!!items.length && (
+        <p className="status-helper">
+          Update status creates illustrated stories for up to four current
+          opportunities at a time with Muse Image. Click again to add more. Your
+          opportunity details stay as text over the artwork.
+        </p>
+      )}
+      {statusError && (
+        <p className="status-error" role="alert">
+          {statusError}
+        </p>
+      )}
       {!loading && !items.length && (
         <p>No current, source-backed opportunities have been added yet.</p>
       )}
@@ -146,6 +275,80 @@ export default function DiscoveryFeed() {
               </article>
             );
           })}
+        </div>
+      )}
+      {currentStatus && (
+        <div
+          className="generated-status-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Opportunity status"
+        >
+          <button
+            className="generated-status-close"
+            type="button"
+            aria-label="Close status"
+            onClick={() => setStatusIndex(null)}
+          >
+            <X size={23} />
+          </button>
+          <button
+            className="generated-status-nav"
+            type="button"
+            aria-label="Previous status"
+            disabled={currentIndex === 0}
+            onClick={() => setStatusIndex(Math.max(0, currentIndex - 1))}
+          >
+            <ChevronLeft size={25} />
+          </button>
+          <article className="generated-status-card">
+            <img
+              src={currentStatus.statusImageUrl!}
+              alt="Muse Image illustration for this opportunity"
+            />
+            <div className="generated-status-shade" />
+            <div className="generated-status-progress">
+              {statuses.map((item, index) => (
+                <span
+                  key={item.sourceUrl}
+                  className={index <= currentIndex ? "active" : ""}
+                />
+              ))}
+            </div>
+            <div className="generated-status-brand">
+              <Sparkles size={17} /> Opportunity Compass · Muse Image
+            </div>
+            <div className="generated-status-copy">
+              <span className="generated-status-label">
+                {currentStatus.organizer}
+              </span>
+              <h2>{currentStatus.title}</h2>
+              <p>{currentStatus.description}</p>
+              <span className="generated-status-deadline">
+                <Clock size={15} /> Apply by{" "}
+                {formatDeadline(currentStatus.deadline)}
+              </span>
+              <a
+                href={currentStatus.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View official opportunity <ArrowUpRight size={16} />
+              </a>
+              <small>Check the official page before applying.</small>
+            </div>
+          </article>
+          <button
+            className="generated-status-nav"
+            type="button"
+            aria-label="Next status"
+            disabled={currentIndex === statuses.length - 1}
+            onClick={() =>
+              setStatusIndex(Math.min(statuses.length - 1, currentIndex + 1))
+            }
+          >
+            <ChevronRight size={25} />
+          </button>
         </div>
       )}
     </section>

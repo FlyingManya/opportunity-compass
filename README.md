@@ -24,6 +24,10 @@ Instagram, LinkedIn, and ordinary website URLs can be saved with a title and cap
 
 The installable app manifest registers `/share` as a URL/text share receiver on supporting devices and browsers. GET sharing only displays incoming content: it does not write to Atlas. **Review in my inbox** carries a draft in browser session storage through sign-in; the user explicitly saves it afterward. Copy/paste is available on all supported browsers. Native Instagram/LinkedIn Share-menu availability must be tested on the target phone; it is not supported everywhere. No offline caching of private dashboard data is added.
 
+## Opportunity status
+
+On the Discover dashboard, **Update status** sends the title, organizer, and description of up to four current, source-backed opportunities at a time to Meta Muse Image. The server requests vertical artwork with no text, stores the generated WebP per account in MongoDB, and serves it only to the signed-in owner. The app overlays the current opportunity text and official link in a story viewer. Repeat the action to add more opportunities. This requires a server-side `MODEL_API_KEY` with access to `muse-image-1.0`; each image generation consumes Meta API credits. Image generation is not exercised by the automated tests, so verify it with a live key before relying on it for a demo.
+
 ## Current boundaries
 
 **All eight listings are fictional samples.** The titles, organizers, dates, eligibility, prices, and funding are demonstration content, not researched opportunities. Dates are generated relative to the current month to exercise the filters. Profile relevance is deterministic, not AI matching.
