@@ -3837,3 +3837,21 @@ h1 {
   line-height: 1.2;
   font-weight: 700;
 }
+.opportunity-card-placeholder {
+  height: 100%;
+  box-sizing: border-box;
+  align-content: center;
+}
+.opportunity-card-placeholder strong,
+.opportunity-card-placeholder span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.opportunity-card-placeholder strong {
+  -webkit-line-clamp: 1;
+}
+.opportunity-card-placeholder span {
+  -webkit-line-clamp: 2;
+  font-size: 18px;
+}
