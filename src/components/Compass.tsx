@@ -1867,19 +1867,31 @@ export default function Compass({ initialUser }: { initialUser: User }) {
         </Modal>
       )}
       {integration && (
-        <Modal label="Your connections" onClose={() => setIntegration(false)}>
+        <Modal
+          label="Your connections"
+          onClose={() => setIntegration(false)}
+          wide
+        >
           <p className="eyebrow">BEHIND YOUR PERSONAL SPACE</p>
           <h2>Your connections.</h2>
           <p className="modal-subtitle">
-            A clear view of what’s ready and what needs connecting.
+            The services behind your personal opportunity dashboard.
           </p>
+          <div className="integration-row">
+            <Globe />
+            <div>
+              <strong>Vercel</strong>
+              <span>Hosts the website and runs its private server APIs.</span>
+            </div>
+            <span className="status-chip ready">Live</span>
+          </div>
           <div className="integration-row">
             <Database />
             <div>
               <strong>MongoDB Atlas</strong>
               <span>
                 {db === "connected"
-                  ? "Connected · opportunity_compass database"
+                  ? "Stores accounts, profiles, search briefs, saved links, opportunities, and story artwork."
                   : db === "checking"
                     ? "Checking connection…"
                     : db === "not-configured"
@@ -1896,12 +1908,35 @@ export default function Compass({ initialUser }: { initialUser: User }) {
           <div className="integration-row">
             <Sparkles />
             <div>
-              <strong>Opportunity discovery</strong>
+              <strong>Muse Wonder</strong>
               <span>
-                Sample walkthrough is separate from live Muse research.
+                Researches the web for opportunities, opens card details, and
+                rechecks missing deadlines.
               </span>
             </div>
-            <span className="status-chip">Samples</span>
+            <span className="status-chip">Research</span>
+          </div>
+          <div className="integration-row">
+            <MessageCircle />
+            <div>
+              <strong>Muse Spark</strong>
+              <span>
+                Powers conversation and personal topic ideas; helps when Wonder
+                cannot complete a search or card summary.
+              </span>
+            </div>
+            <span className="status-chip">Assistant</span>
+          </div>
+          <div className="integration-row">
+            <Palette />
+            <div>
+              <strong>Muse Image</strong>
+              <span>
+                Illustrates opportunity cards and story updates. Stories can
+                also use labelled template artwork.
+              </span>
+            </div>
+            <span className="status-chip">Visuals</span>
           </div>
           <div className="integration-row">
             <CalendarDays />
@@ -1912,16 +1947,16 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             <span className="status-chip">Export only</span>
           </div>
           <div className="setup-instructions">
-            <strong>Connecting Atlas</strong>
+            <strong>How they work together</strong>
             <p>
-              When you’re ready, provide a working database connection through
-              the server’s private <code>MONGODB_URI</code> setting. The app
-              uses its own <code>opportunity_compass</code> database. Your
-              existing cluster has been left paused.
+              You add interests or ask the companion for an opportunity. The app
+              sends only the context you enabled to Meta AI. Its research
+              results become dashboard cards after the app checks the source
+              links and dates, then MongoDB stores them in your account.
             </p>
             <p>
-              Credentials stay on the server. No password or connection string
-              needs to be pasted into this dashboard.
+              Muse Image creates optional artwork for those cards and stories.
+              API keys and database credentials stay on the Vercel server.
             </p>
           </div>
           <button
