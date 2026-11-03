@@ -17,7 +17,14 @@ import {
   platformFor,
   socialPreview,
 } from "./shared-links";
-import { agentMode, askAgent, explainOpportunityWithMuse, extractProfileKeywordsWithMeta, isDiscoveryRequest } from "./agent-model";
+import {
+  agentMode,
+  askAgent,
+  explainOpportunityWithMuse,
+  explainOpportunityWithSpark,
+  extractProfileKeywordsWithMeta,
+  isDiscoveryRequest,
+} from "./agent-model";
 import { tokenHash } from "./security";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
@@ -359,16 +366,13 @@ export async function handleAgent(
       await savedResearch.deleteOne({ userId, sourceUrl });
       return json({ ok: true });
     }
-    const opportunity = await statusOpportunity(db, userId, profile, sourceUrl);
+    const opportunity =
+      (await discoveries.findOne({ userId, sourceUrl })) ||
+      (await manual.findOne({ userId, sourceUrl }));
     if (!opportunity)
       return json(
         { error: "This opportunity is no longer available on your dashboard." },
         404,
-      );
-    if (!opportunity.deadline)
-      return json(
-        { error: "This item has no published application deadline." },
-        400,
       );
     const item: ResearchedSaved = {
       id: statusId(sourceUrl),
@@ -376,7 +380,7 @@ export async function handleAgent(
       title: String(opportunity.title).slice(0, 180),
       organizer: String(opportunity.organizer).slice(0, 180),
       description: String(opportunity.description).slice(0, 600),
-      deadline: String(opportunity.deadline),
+      deadline: String(opportunity.deadline || ""),
       savedAt: new Date().toISOString(),
     };
     await savedResearch.updateOne(
@@ -578,9 +582,9 @@ export async function handleAgent(
     if (!sourceUrl) return json({ error: "A valid source is required." }, 400);
     const matches = { userId, sourceUrl: { $in: [rawUrl, sourceUrl] } };
     const opportunity =
-      (await discoveries.findOne(matches)) ||
-      (await manual.findOne(matches));
-    if (!opportunity) return json({ error: "This card is not in your dashboard." }, 404);
+      (await discoveries.findOne(matches)) || (await manual.findOne(matches));
+    if (!opportunity)
+      return json({ error: "This card is not in your dashboard." }, 404);
     if (!(await allowed(db, userId, "opportunity-detail")))
       return json({ error: "Please try again shortly." }, 429);
     try {
@@ -591,12 +595,26 @@ export async function handleAgent(
         profile,
         (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
       );
-      return json(detail);
+      return json({ ...detail, provider: "Muse Wonder", verified: true });
     } catch (error) {
       console.error("Muse Wonder detail unavailable", {
         code: error instanceof Error ? error.message : "unknown",
       });
-      return json({ error: "Muse Wonder could not summarize this page. Open the source to review it directly." }, 502);
+      try {
+        const detail = await explainOpportunityWithSpark(opportunity.title);
+        return json({ ...detail, provider: "Muse Spark", verified: false });
+      } catch (fallbackError) {
+        console.error("Muse Spark detail unavailable", {
+          code:
+            fallbackError instanceof Error ? fallbackError.message : "unknown",
+        });
+        return json({
+          content: "",
+          sources: [],
+          provider: "Template",
+          verified: false,
+        });
+      }
     }
   }
   if (path === "agent/discoveries/refresh" && method === "POST") {
@@ -610,14 +628,20 @@ export async function handleAgent(
       discoveries.deleteMany({ userId, deadline: { $ne: "", $lt: today } }),
       manual.deleteMany({ userId, deadline: { $ne: "", $lt: today } }),
     ]);
-    return json({ removed: (researched.deletedCount || 0) + (demo.deletedCount || 0) });
+    return json({
+      removed: (researched.deletedCount || 0) + (demo.deletedCount || 0),
+    });
   }
   if (path === "agent/discoveries" && method === "DELETE") {
     const body = (await input()) as { sourceUrl?: string };
     const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
     const sourceUrl = publicLink(rawUrl);
-    if (!sourceUrl) return json({ error: "A valid dashboard link is required." }, 400);
-    const removed = await discoveries.deleteOne({ userId, sourceUrl: { $in: [rawUrl, sourceUrl] } });
+    if (!sourceUrl)
+      return json({ error: "A valid dashboard link is required." }, 400);
+    const removed = await discoveries.deleteOne({
+      userId,
+      sourceUrl: { $in: [rawUrl, sourceUrl] },
+    });
     return json({ removed: removed.deletedCount || 0 });
   }
   if (path === "agent/discoveries" && method === "GET") {
@@ -627,47 +651,51 @@ export async function handleAgent(
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
-    const [rows, unverifiedRows, manualRows] =
-      await Promise.all([
-        discoveries
-          .find(
-            { userId, deadline: { $gte: today } },
-            { projection: { _id: 0, userId: 0 } },
-          )
-          .sort({ deadline: 1 })
-          .limit(20)
-          .toArray(),
-        discoveries
-          .find({ userId, deadline: "" }, { projection: { _id: 0, userId: 0 } })
-          .sort({ discoveredAt: -1 })
-          .limit(20)
-          .toArray(),
-        manual
-          .find(
-            { userId },
-            { projection: { _id: 0, userId: 0, manuallyAddedAt: 0 } },
-          )
-          .limit(20)
-          .toArray(),
-      ]);
+    const [rows, unverifiedRows, manualRows] = await Promise.all([
+      discoveries
+        .find(
+          { userId, deadline: { $gte: today } },
+          { projection: { _id: 0, userId: 0 } },
+        )
+        .sort({ deadline: 1 })
+        .limit(20)
+        .toArray(),
+      discoveries
+        .find({ userId, deadline: "" }, { projection: { _id: 0, userId: 0 } })
+        .sort({ discoveredAt: -1 })
+        .limit(20)
+        .toArray(),
+      manual
+        .find(
+          { userId },
+          { projection: { _id: 0, userId: 0, manuallyAddedAt: 0 } },
+        )
+        .limit(20)
+        .toArray(),
+    ]);
     const currentManual = manualRows.filter(
       (item) => (item.deadline || item.eventDate || "9999-12-31") >= today,
     );
     const opportunities = uniqueOpportunities([
       ...currentManual,
       ...rows,
-      ...unverifiedRows.filter((item) => item.status !== "Search lead; deadline and eligibility unverified"),
-    ]).sort((left, right) =>
-      (
-        left.deadline ||
-        ("eventDate" in left ? String(left.eventDate) : "") ||
-        "9999-12-31"
-      ).localeCompare(
-        right.deadline ||
-          ("eventDate" in right ? String(right.eventDate) : "") ||
-          "9999-12-31",
+      ...unverifiedRows.filter(
+        (item) =>
+          item.status !== "Search lead; deadline and eligibility unverified",
       ),
-    ).slice(0, 20);
+    ])
+      .sort((left, right) =>
+        (
+          left.deadline ||
+          ("eventDate" in left ? String(left.eventDate) : "") ||
+          "9999-12-31"
+        ).localeCompare(
+          right.deadline ||
+            ("eventDate" in right ? String(right.eventDate) : "") ||
+            "9999-12-31",
+        ),
+      )
+      .slice(0, 20);
     const images = await statusImages
       .find(
         {
@@ -817,7 +845,11 @@ export async function handleAgent(
           ]
         : [];
       const resumeForAgent = settings?.preferences?.useResume
-        ? await db.collection<{ userId: string; type: string; data: Binary }>("resumes").findOne({ userId })
+        ? await db
+            .collection<{ userId: string; type: string; data: Binary }>(
+              "resumes",
+            )
+            .findOne({ userId })
         : null;
       const result = await askAgent(
         preferences,
@@ -919,24 +951,39 @@ export async function handleAgent(
           else added++;
         }
         const keywordsCollection = db.collection("profile_keywords");
-        const signature = tokenHash(JSON.stringify({
-          profile: preferences.useProfile ? profile : null,
-          brief: preferences.brief,
-          resume: preferences.useResume && resumeForAgent?.type === "text/plain"
-            ? Buffer.from(resumeForAgent.data.buffer).toString("utf8").slice(0, 2500)
-            : null,
-          consent: preferences.useMetaContext,
-        }));
+        const signature = tokenHash(
+          JSON.stringify({
+            profile: preferences.useProfile ? profile : null,
+            brief: preferences.brief,
+            resume:
+              preferences.useResume && resumeForAgent?.type === "text/plain"
+                ? Buffer.from(resumeForAgent.data.buffer)
+                    .toString("utf8")
+                    .slice(0, 2500)
+                : null,
+            consent: preferences.useMetaContext,
+          }),
+        );
         const cachedKeywords = await keywordsCollection.findOne({ userId });
-        let profileKeywords: string[] = cachedKeywords?.signature === signature
-          ? cachedKeywords.keywords || []
-          : [];
-        if (cachedKeywords?.signature !== signature) {
-          const fallback = preferences.useMetaContext && preferences.useProfile
-            ? [profile.profession, ...profile.skills, ...profile.interests].filter(Boolean)
+        let profileKeywords: string[] =
+          cachedKeywords?.signature === signature
+            ? cachedKeywords.keywords || []
             : [];
+        if (cachedKeywords?.signature !== signature) {
+          const fallback =
+            preferences.useMetaContext && preferences.useProfile
+              ? [
+                  profile.profession,
+                  ...profile.skills,
+                  ...profile.interests,
+                ].filter(Boolean)
+              : [];
           let extracted: string[] = [];
-          if (preferences.useMetaContext && preferences.useProfile && process.env.MODEL_API_KEY) {
+          if (
+            preferences.useMetaContext &&
+            preferences.useProfile &&
+            process.env.MODEL_API_KEY
+          ) {
             try {
               extracted = await extractProfileKeywordsWithMeta(
                 profile,
@@ -949,14 +996,31 @@ export async function handleAgent(
               // Profile fields remain usable when keyword extraction is unavailable.
             }
           }
-          profileKeywords = [...new Set([...extracted, ...fallback])].slice(0, 20);
+          profileKeywords = [...new Set([...extracted, ...fallback])].slice(
+            0,
+            20,
+          );
           await keywordsCollection.updateOne(
             { userId },
-            { $set: { userId, signature, keywords: profileKeywords, updatedAt: new Date() } },
+            {
+              $set: {
+                userId,
+                signature,
+                keywords: profileKeywords,
+                updatedAt: new Date(),
+              },
+            },
             { upsert: true },
           );
         }
-        const sourceLeads = sourceQueue(result.sources, message, profileKeywords, known, 20, today);
+        const sourceLeads = sourceQueue(
+          result.sources,
+          message,
+          profileKeywords,
+          known,
+          20,
+          today,
+        );
         for (const lead of sourceLeads) {
           if (added + leadsAdded >= 20) break;
           await discoveries.updateOne(
@@ -965,9 +1029,11 @@ export async function handleAgent(
               $set: {
                 userId,
                 ...lead,
-                description: "Open this card for a Muse Wonder summary of the linked opportunity.",
+                description:
+                  "Open this card for a Muse Wonder summary of the linked opportunity.",
                 deadline: "",
-                reason: "Found through a web search for your request; details need review.",
+                reason:
+                  "Found through a web search for your request; details need review.",
                 discoveredAt: new Date().toISOString(),
                 status: "Search lead; deadline not mentioned",
               },
@@ -977,10 +1043,17 @@ export async function handleAgent(
           known.push({ ...lead, deadline: "" });
           leadsAdded++;
         }
-        const overflow = (await discoveries.find({ userId }, { projection: { _id: 1 } })
-          .sort({ discoveredAt: -1 }).toArray()).slice(20);
+        const overflow = (
+          await discoveries
+            .find({ userId }, { projection: { _id: 1 } })
+            .sort({ discoveredAt: -1 })
+            .toArray()
+        ).slice(20);
         if (overflow.length)
-          await discoveries.deleteMany({ userId, _id: { $in: overflow.map((item) => item._id) } });
+          await discoveries.deleteMany({
+            userId,
+            _id: { $in: overflow.map((item) => item._id) },
+          });
         console.info("Opportunity discovery validation", {
           candidates: items.length,
           sources: result.sources.length,
@@ -998,7 +1071,7 @@ export async function handleAgent(
               ? `I added ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} to your Discover dashboard. Their deadlines and eligibility are not verified yet, so open the official pages before applying.`
               : alreadyListed
                 ? "I found an opportunity matching your request, but it is already on your Discover dashboard. Please check the official page before applying."
-              : "I couldn't add a new matching link from this search. Try a more specific topic or add a source in your search brief.",
+                : "I couldn't add a new matching link from this search. Try a more specific topic or add a source in your search brief.",
           createdAt: new Date().toISOString(),
           sources: [],
         };

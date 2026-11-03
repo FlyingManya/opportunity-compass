@@ -164,12 +164,14 @@ export default function Compass({ initialUser }: { initialUser: User }) {
         sample: o,
       },
     ]),
-    ...researchedSaved.map((item) => ({
-      id: item.id,
-      date: item.deadline.slice(0, 10),
-      label: `Deadline: ${item.title}`,
-      sourceUrl: item.sourceUrl,
-    })),
+    ...researchedSaved
+      .filter((item) => !!item.deadline)
+      .map((item) => ({
+        id: item.id,
+        date: item.deadline.slice(0, 10),
+        label: `Deadline: ${item.title}`,
+        sourceUrl: item.sourceUrl,
+      })),
   ];
   const calendarMonthKey = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
   const monthlyCalendarEntries = calendarEntries
@@ -354,8 +356,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       );
       setToast(
         existing
-          ? "Removed from Interested and your calendar."
-          : `${item.title} added to Interested and your calendar.`,
+          ? "Removed from Interested."
+          : item.deadline
+            ? `${item.title} added to Interested and your calendar.`
+            : `${item.title} added to Interested. Its deadline is not published, so it is not on your calendar yet.`,
       );
     } catch (cause) {
       setToast((cause as Error).message);
@@ -1032,103 +1036,107 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   navigate("agent");
                 }}
               />
-              {researchCount === 0 && <><section className="search-card">
-                <div className="search-input">
-                  <Search size={19} />
-                  <input
-                    ref={searchRef}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="AI hackathons, a new role, pottery near you…"
-                    aria-label="Search sample opportunities"
-                  />
-                  {query && (
-                    <button
-                      className="icon-button"
-                      aria-label="Clear search"
-                      onClick={() => setQuery("")}
+              {researchCount === 0 && (
+                <>
+                  <section className="search-card">
+                    <div className="search-input">
+                      <Search size={19} />
+                      <input
+                        ref={searchRef}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="AI hackathons, a new role, pottery near you…"
+                        aria-label="Search sample opportunities"
+                      />
+                      {query && (
+                        <button
+                          className="icon-button"
+                          aria-label="Clear search"
+                          onClick={() => setQuery("")}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                      <span className="search-shortcut">SAMPLE SEARCH</span>
+                    </div>
+                    <div className="search-filters">
+                      <label>
+                        <CalendarDays size={14} />
+                        <input
+                          type="month"
+                          aria-label="Filter by month"
+                          value={month}
+                          onChange={(e) => setMonth(e.target.value)}
+                        />
+                      </label>
+                      <select
+                        aria-label="Date filter type"
+                        value={dateType}
+                        onChange={(e) =>
+                          setDateType(e.target.value as "deadline" | "event")
+                        }
+                      >
+                        <option value="deadline">Applications close</option>
+                        <option value="event">Events happen</option>
+                      </select>
+                      <select
+                        aria-label="Opportunity format"
+                        value={format}
+                        onChange={(e) => setFormat(e.target.value)}
+                      >
+                        <option value="all">Any format</option>
+                        <option>Remote</option>
+                        <option>In person</option>
+                        <option>Hybrid</option>
+                      </select>
+                      {month && (
+                        <button
+                          className="text-button"
+                          onClick={() => setMonth("")}
+                        >
+                          Clear month
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                  <div className="section-heading">
+                    <div
+                      className="category-tabs"
+                      role="tablist"
+                      aria-label="Opportunity categories"
                     >
-                      <X size={15} />
-                    </button>
-                  )}
-                  <span className="search-shortcut">SAMPLE SEARCH</span>
-                </div>
-                <div className="search-filters">
-                  <label>
-                    <CalendarDays size={14} />
-                    <input
-                      type="month"
-                      aria-label="Filter by month"
-                      value={month}
-                      onChange={(e) => setMonth(e.target.value)}
-                    />
-                  </label>
-                  <select
-                    aria-label="Date filter type"
-                    value={dateType}
-                    onChange={(e) =>
-                      setDateType(e.target.value as "deadline" | "event")
-                    }
-                  >
-                    <option value="deadline">Applications close</option>
-                    <option value="event">Events happen</option>
-                  </select>
-                  <select
-                    aria-label="Opportunity format"
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value)}
-                  >
-                    <option value="all">Any format</option>
-                    <option>Remote</option>
-                    <option>In person</option>
-                    <option>Hybrid</option>
-                  </select>
-                  {month && (
-                    <button
-                      className="text-button"
-                      onClick={() => setMonth("")}
-                    >
-                      Clear month
-                    </button>
-                  )}
-                </div>
-              </section>
-              <div className="section-heading">
-                <div
-                  className="category-tabs"
-                  role="tablist"
-                  aria-label="Opportunity categories"
-                >
-                  {(
-                    [
-                      "all",
-                      "hackathons",
-                      "women-tech",
-                      "custom",
-                      "jobs",
-                    ] as Category[]
-                  ).map((c) => (
-                    <button
-                      role="tab"
-                      aria-selected={category === c}
-                      key={c}
-                      className={category === c ? "active" : ""}
-                      onClick={() => setCategory(c)}
-                    >
-                      {c === "all" && <Sparkles size={13} />}{" "}
-                      {c === "jobs"
-                        ? "Jobs"
-                        : c === "custom"
-                          ? "Something new"
-                          : categoryLabels[c]}
-                    </button>
-                  ))}
-                </div>
-                <span className="sort-note">
-                  <SlidersHorizontal size={13} />
-                  {profile.onboarded ? "Profile relevance" : "Explore all"}
-                </span>
-              </div></>}
+                      {(
+                        [
+                          "all",
+                          "hackathons",
+                          "women-tech",
+                          "custom",
+                          "jobs",
+                        ] as Category[]
+                      ).map((c) => (
+                        <button
+                          role="tab"
+                          aria-selected={category === c}
+                          key={c}
+                          className={category === c ? "active" : ""}
+                          onClick={() => setCategory(c)}
+                        >
+                          {c === "all" && <Sparkles size={13} />}{" "}
+                          {c === "jobs"
+                            ? "Jobs"
+                            : c === "custom"
+                              ? "Something new"
+                              : categoryLabels[c]}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="sort-note">
+                      <SlidersHorizontal size={13} />
+                      {profile.onboarded ? "Profile relevance" : "Explore all"}
+                    </span>
+                  </div>
+                </>
+              )}
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
                 onCountChange={setResearchCount}
@@ -1138,67 +1146,72 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 savingSourceUrl={savingResearch}
                 onToggleInterested={toggleResearched}
               />
-              {researchCount === 0 && <><div className="sample-note">
-                <span className="sample-dot" />
-                <p>
-                  <strong>A preview of what’s possible.</strong> These{" "}
-                  {catalog.length} opportunities below are fictional samples.
-                </p>
-              </div>
-              {results.length ? (
-                <div className="opportunity-grid">
-                  {results.map((o) => (
-                    <OpportunityCard
-                      key={o.id}
-                      o={o}
-                      saved={!!saved.find((s) => s.opportunityId === o.id)}
-                      profile={profile}
-                      onOpen={() => setSelected(o)}
-                      onSave={() => saveOpportunity(o)}
-                      busy={busy}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <Search size={28} />
-                  <h3>No sample opportunities match yet.</h3>
-                  <p>
-                    This searches the starter collection, not the live web. Try
-                    a category or a broader term.
-                  </p>
-                  <button
-                    className="secondary"
-                    onClick={() => {
-                      setQuery("");
-                      setCategory("all");
-                      setMonth("");
-                      setFormat("all");
-                    }}
-                  >
-                    Reset filters
-                  </button>
-                </div>
+              {researchCount === 0 && (
+                <>
+                  <div className="sample-note">
+                    <span className="sample-dot" />
+                    <p>
+                      <strong>A preview of what’s possible.</strong> These{" "}
+                      {catalog.length} opportunities below are fictional
+                      samples.
+                    </p>
+                  </div>
+                  {results.length ? (
+                    <div className="opportunity-grid">
+                      {results.map((o) => (
+                        <OpportunityCard
+                          key={o.id}
+                          o={o}
+                          saved={!!saved.find((s) => s.opportunityId === o.id)}
+                          profile={profile}
+                          onOpen={() => setSelected(o)}
+                          onSave={() => saveOpportunity(o)}
+                          busy={busy}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <Search size={28} />
+                      <h3>No sample opportunities match yet.</h3>
+                      <p>
+                        This searches the starter collection, not the live web.
+                        Try a category or a broader term.
+                      </p>
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setQuery("");
+                          setCategory("all");
+                          setMonth("");
+                          setFormat("all");
+                        }}
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  )}
+                  <div className="bottom-prompt">
+                    <span>✧</span>
+                    <div>
+                      <h3>There’s more than one kind of next step.</h3>
+                      <p>
+                        A dream job, a weekend workshop, or a community that
+                        gets you.
+                      </p>
+                    </div>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setCategory("custom");
+                        setQuery("");
+                      }}
+                    >
+                      Try something different <ArrowUpRight size={14} />
+                    </button>
+                  </div>
+                </>
               )}
-              <div className="bottom-prompt">
-                <span>✧</span>
-                <div>
-                  <h3>There’s more than one kind of next step.</h3>
-                  <p>
-                    A dream job, a weekend workshop, or a community that gets
-                    you.
-                  </p>
-                </div>
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setCategory("custom");
-                    setQuery("");
-                  }}
-                >
-                  Try something different <ArrowUpRight size={14} />
-                </button>
-              </div></>}
             </>
           )}
           {view === "saved" && (
@@ -1214,7 +1227,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 </div>
                 <button
                   className="secondary"
-                  disabled={!saved.length && !researchedSaved.length}
+                  disabled={
+                    !saved.length &&
+                    !researchedSaved.some((item) => !!item.deadline)
+                  }
                   onClick={() =>
                     exportCalendar([...savedItems, ...researchedSaved])
                   }
@@ -1259,7 +1275,9 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                           </h3>
                           <p>
                             <Clock size={12} /> Application deadline{" "}
-                            {fmt(item.deadline)}
+                            {item.deadline
+                              ? fmt(item.deadline)
+                              : "Not mentioned"}
                           </p>
                         </div>
                         <button
@@ -1282,12 +1300,14 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                         >
                           Official page <ArrowUpRight size={14} />
                         </a>
-                        <button
-                          className="text-button"
-                          onClick={() => exportCalendar([item])}
-                        >
-                          <CalendarDays size={14} /> Export deadline
-                        </button>
+                        {item.deadline && (
+                          <button
+                            className="text-button"
+                            onClick={() => exportCalendar([item])}
+                          >
+                            <CalendarDays size={14} /> Export deadline
+                          </button>
+                        )}
                       </div>
                     </section>
                   ))}

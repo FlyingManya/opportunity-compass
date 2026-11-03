@@ -15,6 +15,20 @@ import {
 import { emptyProfile } from "../src/lib/types";
 import { catalog, filterCatalog, relevance } from "../src/lib/catalog";
 import { calendarFile } from "../src/lib/calendar";
+import type { ResearchedSaved } from "../src/lib/agent-types";
+
+test("calendar export skips researched cards without a published deadline", () => {
+  const undated: ResearchedSaved = {
+    id: "undated",
+    sourceUrl: "https://example.org/event",
+    title: "Open event",
+    organizer: "Example",
+    description: "Details pending",
+    deadline: "",
+    savedAt: "2026-11-03T00:00:00Z",
+  };
+  assert.equal(calendarFile([undated]).includes("BEGIN:VEVENT"), false);
+});
 test("passwords are salted and only the original password verifies", async () => {
   const a = await hashPassword("a-good-long-password");
   const b = await hashPassword("a-good-long-password");

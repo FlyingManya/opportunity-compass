@@ -593,9 +593,14 @@ export async function explainOpportunityWithMuse(
   preferences: AgentPreferences,
 ) {
   if (!process.env.MODEL_API_KEY) throw new Error("MODEL_UNAVAILABLE");
-  const context = preferences.useMetaContext && preferences.useProfile
-    ? { profession: profile.profession, skills: profile.skills, interests: profile.interests }
-    : null;
+  const context =
+    preferences.useMetaContext && preferences.useProfile
+      ? {
+          profession: profile.profession,
+          skills: profile.skills,
+          interests: profile.interests,
+        }
+      : null;
   const response = await fetch("https://api.meta.ai/v1/responses", {
     method: "POST",
     headers: {
@@ -626,7 +631,32 @@ export async function explainOpportunityWithMuse(
     outputTypes: (body.output || []).map((item: { type: string }) => item.type),
   });
   const parsed = parseAgentReply(body, true);
-  return { content: parsed.content.slice(0, 4500), sources: parsed.sources.slice(0, 6) };
+  return {
+    content: parsed.content.slice(0, 4500),
+    sources: parsed.sources.slice(0, 6),
+  };
+}
+
+export async function explainOpportunityWithSpark(title: string) {
+  if (!process.env.MODEL_API_KEY) throw new Error("MODEL_UNAVAILABLE");
+  const response = await fetch("https://api.meta.ai/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.MODEL_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.META_TEXT_MODEL || "muse-spark-1.3",
+      input: `The web research model could not verify this opportunity: ${title}. Write a short, helpful, GENERAL preparation guide based only on the title. Include 3 practical tips. Do not claim you visited its page. Do not invent dates, eligibility, prizes, application instructions, or a specific YouTube video. State that official details must be checked on the source page.`,
+      max_output_tokens: 700,
+      reasoning: { effort: "low" },
+      store: false,
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!response.ok) throw new Error(`SPARK_${response.status}`);
+  const parsed = parseAgentReply(await response.json(), true);
+  return { content: parsed.content.slice(0, 2400), sources: [] };
 }
 
 export async function extractProfileKeywordsWithMeta(
@@ -652,11 +682,18 @@ export async function extractProfileKeywordsWithMeta(
   if (!response.ok) return [];
   const { content } = parseAgentReply(await response.json(), true);
   try {
-    const parsed: unknown = JSON.parse(content.slice(content.indexOf("["), content.lastIndexOf("]") + 1));
+    const parsed: unknown = JSON.parse(
+      content.slice(content.indexOf("["), content.lastIndexOf("]") + 1),
+    );
     return Array.isArray(parsed)
-      ? [...new Set(parsed.filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim().slice(0, 50))
-        .filter((item) => item.length >= 2))].slice(0, 12)
+      ? [
+          ...new Set(
+            parsed
+              .filter((item): item is string => typeof item === "string")
+              .map((item) => item.trim().slice(0, 50))
+              .filter((item) => item.length >= 2),
+          ),
+        ].slice(0, 12)
       : [];
   } catch {
     return [];

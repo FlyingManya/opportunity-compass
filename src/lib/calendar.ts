@@ -36,6 +36,7 @@ export function calendarFile(
     ...items.flatMap((o) => {
       const sample = "sample" in o && o.sample;
       if (!sample && kind === "event") return [];
+      if (!o.deadline && kind === "deadline") return [];
       const iso =
         kind === "deadline" ? o.deadline : (o as Opportunity).eventDate;
       const day = iso.slice(0, 10).replaceAll("-", "");

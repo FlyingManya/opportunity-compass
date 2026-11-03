@@ -154,38 +154,101 @@ test("one event with two official pages appears once, while a different edition 
 test("source queue follows a literature request and does not require a Devpost source", () => {
   const queued = sourceQueue(
     [
-      { title: "National Essay Writing Competition", url: "https://literary.example.org/essay-2026" },
+      {
+        title: "National Essay Writing Competition",
+        url: "https://literary.example.org/essay-2026",
+      },
       { title: "AI Hackathon", url: "https://code.example.org/ai" },
-      { title: "Another Essay Competition", url: "https://arts.example.org/contest" },
-      { title: "Scholarships for Literature Students in India", url: "https://grants.example.org/scholarships" },
+      {
+        title: "Another Essay Competition",
+        url: "https://arts.example.org/contest",
+      },
+      {
+        title: "Scholarships for Literature Students in India",
+        url: "https://grants.example.org/scholarships",
+      },
     ],
     "Find essay writing competitions for literature students in India",
     ["literature", "poetry"],
     [],
   );
-  assert.deepEqual(queued.map((item) => item.title), [
-    "National Essay Writing Competition",
-    "Another Essay Competition",
-  ]);
+  assert.deepEqual(
+    queued.map((item) => item.title),
+    ["National Essay Writing Competition", "Another Essay Competition"],
+  );
 });
 test("dashboard refresh deletes only this user's passed, dated opportunities", async () => {
   const db = memoryDatabase();
   const collection = db.collection("discovered_opportunities");
   for (const item of [
-    { userId: "alice", sourceUrl: "https://a.example.org", deadline: "2025-01-01" },
+    {
+      userId: "alice",
+      sourceUrl: "https://a.example.org",
+      deadline: "2025-01-01",
+    },
     { userId: "alice", sourceUrl: "https://b.example.org", deadline: "" },
-    { userId: "alice", sourceUrl: "https://c.example.org", deadline: "2999-01-01" },
-    { userId: "bob", sourceUrl: "https://d.example.org", deadline: "2025-01-01" },
-  ]) await collection.insertOne(item);
-  const result = await handleAgent(db, "alice", emptyProfile, "agent/discoveries/refresh", "POST", async () => null);
+    {
+      userId: "alice",
+      sourceUrl: "https://c.example.org",
+      deadline: "2999-01-01",
+    },
+    {
+      userId: "bob",
+      sourceUrl: "https://d.example.org",
+      deadline: "2025-01-01",
+    },
+  ])
+    await collection.insertOne(item);
+  const result = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/discoveries/refresh",
+    "POST",
+    async () => null,
+  );
   assert.equal((await result.json()).removed, 1);
-  assert.equal(await collection.findOne({ userId: "alice", sourceUrl: "https://a.example.org" }), null);
-  assert.ok(await collection.findOne({ userId: "alice", sourceUrl: "https://b.example.org" }));
-  assert.ok(await collection.findOne({ userId: "bob", sourceUrl: "https://d.example.org" }));
-  const dismissed = await handleAgent(db, "alice", emptyProfile, "agent/discoveries", "DELETE", async () => ({ sourceUrl: "https://b.example.org" }));
+  assert.equal(
+    await collection.findOne({
+      userId: "alice",
+      sourceUrl: "https://a.example.org",
+    }),
+    null,
+  );
+  assert.ok(
+    await collection.findOne({
+      userId: "alice",
+      sourceUrl: "https://b.example.org",
+    }),
+  );
+  assert.ok(
+    await collection.findOne({
+      userId: "bob",
+      sourceUrl: "https://d.example.org",
+    }),
+  );
+  const dismissed = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/discoveries",
+    "DELETE",
+    async () => ({ sourceUrl: "https://b.example.org" }),
+  );
   assert.equal((await dismissed.json()).removed, 1);
-  assert.equal(await collection.findOne({ userId: "alice", sourceUrl: "https://b.example.org" }), null);
-  assert.ok(await collection.findOne({ userId: "bob", sourceUrl: "https://d.example.org" }));
+  assert.equal(
+    await collection.findOne({
+      userId: "alice",
+      sourceUrl: "https://b.example.org",
+    }),
+    null,
+  );
+  assert.ok(
+    await collection.findOne({
+      userId: "bob",
+      sourceUrl: "https://d.example.org",
+    }),
+  );
 });
 test("opening an owned card asks Muse Wonder for details on demand", async () => {
   const oldKey = process.env.MODEL_API_KEY;
@@ -194,16 +257,107 @@ test("opening an owned card asks Muse Wonder for details on demand", async () =>
   let model = "";
   globalThis.fetch = (async (_url: string, init: RequestInit) => {
     model = JSON.parse(String(init.body)).model;
-    return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: "Eligibility: Students. Deadline: Not mentioned." }] }] });
+    return Response.json({
+      output: [
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: "Eligibility: Students. Deadline: Not mentioned.",
+            },
+          ],
+        },
+      ],
+    });
   }) as typeof fetch;
   try {
     const db = memoryDatabase();
-    await db.collection("discovered_opportunities").insertOne({ userId: "alice", sourceUrl: "https://literary.example.org/essay", title: "Essay competition", deadline: "" });
-    const result = await handleAgent(db, "alice", emptyProfile, "agent/discoveries/detail", "POST", async () => ({ sourceUrl: "https://literary.example.org/essay" }));
-    assert.equal((await result.json()).content, "Eligibility: Students. Deadline: Not mentioned.");
+    await db
+      .collection("discovered_opportunities")
+      .insertOne({
+        userId: "alice",
+        sourceUrl: "https://literary.example.org/essay",
+        title: "Essay competition",
+        deadline: "",
+      });
+    const result = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/discoveries/detail",
+      "POST",
+      async () => ({ sourceUrl: "https://literary.example.org/essay" }),
+    );
+    assert.equal(
+      (await result.json()).content,
+      "Eligibility: Students. Deadline: Not mentioned.",
+    );
     assert.equal(model, "muse-wonder-1.0");
-    const other = await handleAgent(db, "bob", emptyProfile, "agent/discoveries/detail", "POST", async () => ({ sourceUrl: "https://literary.example.org/essay" }));
+    const other = await handleAgent(
+      db,
+      "bob",
+      emptyProfile,
+      "agent/discoveries/detail",
+      "POST",
+      async () => ({ sourceUrl: "https://literary.example.org/essay" }),
+    );
     assert.equal(other.status, 404);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = oldKey;
+  }
+});
+
+test("card details fall back to Muse Spark when Wonder cannot research", async () => {
+  const oldKey = process.env.MODEL_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.MODEL_API_KEY = "test-only";
+  const models: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    const model = JSON.parse(String(init.body)).model;
+    models.push(model);
+    if (model === "muse-wonder-1.0")
+      return Response.json({ error: { code: "unavailable" } }, { status: 503 });
+    return Response.json({
+      output: [
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: "General tip: prepare a short portfolio.",
+            },
+          ],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    const sourceUrl = "https://example.org/hackathon";
+    await db
+      .collection("discovered_opportunities")
+      .insertOne({
+        userId: "alice",
+        sourceUrl,
+        title: "AI Hackathon",
+        deadline: "",
+      });
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/discoveries/detail",
+      "POST",
+      async () => ({ sourceUrl }),
+    );
+    const result = await response.json();
+    assert.equal(result.provider, "Muse Spark");
+    assert.equal(result.verified, false);
+    assert.match(result.content, /portfolio/);
+    assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
   } finally {
     globalThis.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.MODEL_API_KEY;
@@ -417,10 +571,11 @@ function memoryDatabase() {
       value && typeof value === "object" && "$gte" in value
         ? record[key] >= (value as { $gte: string }).$gte
         : value && typeof value === "object" && "$ne" in value && "$lt" in value
-          ? record[key] !== (value as { $ne: string }).$ne && record[key] < (value as { $lt: string }).$lt
-        : value && typeof value === "object" && "$in" in value
-          ? (value as { $in: unknown[] }).$in.includes(record[key])
-          : record[key] === value,
+          ? record[key] !== (value as { $ne: string }).$ne &&
+            record[key] < (value as { $lt: string }).$lt
+          : value && typeof value === "object" && "$in" in value
+            ? (value as { $in: unknown[] }).$in.includes(record[key])
+            : record[key] === value,
     );
   return {
     collection(name: string) {
@@ -523,7 +678,8 @@ test("manual demo cards stay in the signed-in account and do not invent deadline
     "POST",
     async () => ({ sourceUrl: amazon.sourceUrl }),
   );
-  assert.equal(interested.status, 400);
+  assert.equal(interested.status, 200);
+  assert.equal((await interested.json()).item.deadline, "");
   assert.equal(
     (await (await call("alice", "agent/demo-seed", "POST")).json()).added,
     4,
@@ -715,7 +871,8 @@ test("status remains viewable with labelled template artwork when Muse Image is 
     });
     await db.collection("discovered_opportunities").insertOne({
       userId: "alice",
-      sourceUrl: "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
+      sourceUrl:
+        "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
       title: "Bloomberg x WiCyS CTF",
       organizer: "WiCyS",
       description: "A virtual cybersecurity competition.",
@@ -1366,7 +1523,9 @@ test("search links reach the dashboard even when the model cannot verify a deadl
   const eventUrl = "https://new-ai-2026.devpost.com/";
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     if (String(input) === eventUrl) {
-      return new Response(`<script id="challenge-json-ld" type="application/ld+json">${JSON.stringify({ endDate: "2999-11-10", eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" })}</script>`);
+      return new Response(
+        `<script id="challenge-json-ld" type="application/ld+json">${JSON.stringify({ endDate: "2999-11-10", eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" })}</script>`,
+      );
     }
     return Response.json({
       content: [

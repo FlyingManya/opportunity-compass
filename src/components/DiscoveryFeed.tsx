@@ -6,6 +6,10 @@ import {
   Clock,
   LoaderCircle,
   Bookmark,
+  CalendarDays,
+  Check,
+  ExternalLink,
+  Play,
   Sparkles,
   X,
 } from "lucide-react";
@@ -147,6 +151,10 @@ export default function DiscoveryFeed({
   const [statusNotice, setStatusNotice] = useState("");
   const [selected, setSelected] = useState<Discovery | null>(null);
   const [detail, setDetail] = useState("");
+  const [detailProvider, setDetailProvider] = useState("");
+  const [detailSources, setDetailSources] = useState<
+    { title: string; url: string }[]
+  >([]);
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -156,6 +164,8 @@ export default function DiscoveryFeed({
   async function openDetail(item: Discovery) {
     setSelected(item);
     setDetail("");
+    setDetailProvider("");
+    setDetailSources([]);
     setDetailError("");
     setDetailBusy(true);
     try {
@@ -165,10 +175,15 @@ export default function DiscoveryFeed({
         body: JSON.stringify({ sourceUrl: item.sourceUrl }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Details are unavailable.");
-      setDetail(body.content || "No details were returned.");
+      if (!response.ok)
+        throw new Error(body.error || "Details are unavailable.");
+      setDetail(body.content || "");
+      setDetailProvider(body.provider || "Muse Wonder");
+      setDetailSources(Array.isArray(body.sources) ? body.sources : []);
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : "Details are unavailable.");
+      setDetailError(
+        error instanceof Error ? error.message : "Details are unavailable.",
+      );
     } finally {
       setDetailBusy(false);
     }
@@ -178,18 +193,30 @@ export default function DiscoveryFeed({
     setRefreshing(true);
     setStatusError("");
     try {
-      const response = await fetch("/api/agent/discoveries/refresh", { method: "POST" });
+      const response = await fetch("/api/agent/discoveries/refresh", {
+        method: "POST",
+      });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not refresh cards.");
-      const latest = await fetch("/api/agent/discoveries", { cache: "no-store" });
+      if (!response.ok)
+        throw new Error(body.error || "Could not refresh cards.");
+      const latest = await fetch("/api/agent/discoveries", {
+        cache: "no-store",
+      });
       const dashboard = await latest.json();
-      if (!latest.ok) throw new Error(dashboard.error || "Could not load cards.");
-      setItems(Array.isArray(dashboard.opportunities) ? dashboard.opportunities : []);
-      setStatusNotice(body.removed
-        ? `Removed ${body.removed} opportunit${body.removed === 1 ? "y" : "ies"} with passed deadlines.`
-        : "Dashboard is up to date.");
+      if (!latest.ok)
+        throw new Error(dashboard.error || "Could not load cards.");
+      setItems(
+        Array.isArray(dashboard.opportunities) ? dashboard.opportunities : [],
+      );
+      setStatusNotice(
+        body.removed
+          ? `Removed ${body.removed} opportunit${body.removed === 1 ? "y" : "ies"} with passed deadlines.`
+          : "Dashboard is up to date.",
+      );
     } catch (error) {
-      setStatusError(error instanceof Error ? error.message : "Could not refresh cards.");
+      setStatusError(
+        error instanceof Error ? error.message : "Could not refresh cards.",
+      );
     } finally {
       setRefreshing(false);
     }
@@ -200,7 +227,10 @@ export default function DiscoveryFeed({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sourceUrl: item.sourceUrl }),
     });
-    if (response.ok) setItems((current) => current.filter((entry) => entry.sourceUrl !== item.sourceUrl));
+    if (response.ok)
+      setItems((current) =>
+        current.filter((entry) => entry.sourceUrl !== item.sourceUrl),
+      );
     else setStatusError("Could not remove that card.");
   }
   useEffect(() => {
@@ -330,7 +360,12 @@ export default function DiscoveryFeed({
         <h2>Researched for you</h2>
         {!!items.length && (
           <div className="discovery-status-actions">
-            <button type="button" className="secondary" onClick={refreshCards} disabled={refreshing}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={refreshCards}
+              disabled={refreshing}
+            >
               {refreshing ? "Refreshing…" : "Refresh dashboard"}
             </button>
             <button
@@ -377,7 +412,8 @@ export default function DiscoveryFeed({
                 key={item.sourceUrl}
                 className="op-card discovery-feed-card"
                 onClick={(event) => {
-                  if (!(event.target as HTMLElement).closest("button,a")) openDetail(item);
+                  if (!(event.target as HTMLElement).closest("button,a"))
+                    openDetail(item);
                 }}
               >
                 <div className="card-art-wrap">
@@ -398,12 +434,12 @@ export default function DiscoveryFeed({
                           ? "WEB LINK · CHECK DATES"
                           : item.status?.startsWith("Verified on Devpost")
                             ? "DEVPOST · DATE CHECKED"
-                          : "AI RESEARCHED"}
+                            : "AI RESEARCHED"}
                   </span>
-                  {onToggleInterested && !!item.deadline && (
+                  {onToggleInterested && (
                     <button
                       type="button"
-                      className={`bookmark-button ${savedSourceUrls.includes(item.sourceUrl) ? "is-saved" : ""}`}
+                      className={`bookmark-button discovery-interested-button ${savedSourceUrls.includes(item.sourceUrl) ? "is-saved" : ""}`}
                       onClick={() => onToggleInterested(item)}
                       disabled={savingSourceUrl === item.sourceUrl}
                       aria-label={`${savedSourceUrls.includes(item.sourceUrl) ? "Remove" : "Add"} ${item.title} ${savedSourceUrls.includes(item.sourceUrl) ? "from" : "to"} Interested`}
@@ -421,6 +457,13 @@ export default function DiscoveryFeed({
                             : "none"
                         }
                       />
+                      <span>
+                        {savingSourceUrl === item.sourceUrl
+                          ? "Saving…"
+                          : savedSourceUrls.includes(item.sourceUrl)
+                            ? "Interested"
+                            : "I'm interested"}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -437,11 +480,23 @@ export default function DiscoveryFeed({
                           : "Real opportunity"}
                     </span>
                     {!item.provenance && (
-                      <button type="button" className="discovery-remove" onClick={() => removeCard(item)} aria-label={`Remove ${item.title} from dashboard`} title="Remove from dashboard"><X size={14} /></button>
+                      <button
+                        type="button"
+                        className="discovery-remove"
+                        onClick={() => removeCard(item)}
+                        aria-label={`Remove ${item.title} from dashboard`}
+                        title="Remove from dashboard"
+                      >
+                        <X size={14} />
+                      </button>
                     )}
                   </div>
                   <h3>
-                    <button type="button" className="discovery-title-button" onClick={() => openDetail(item)}>
+                    <button
+                      type="button"
+                      className="discovery-title-button"
+                      onClick={() => openDetail(item)}
+                    >
                       {item.title}
                     </button>
                   </h3>
@@ -477,17 +532,195 @@ export default function DiscoveryFeed({
         </div>
       )}
       {selected && (
-        <div className="generated-status-overlay" role="dialog" aria-modal="true" aria-label={`Details for ${selected.title}`}>
+        <div
+          className="generated-status-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Details for ${selected.title}`}
+        >
           <div className="discovery-detail-panel">
-            <button type="button" className="generated-status-close" aria-label="Close details" onClick={() => setSelected(null)}><X size={22} /></button>
-            <p className="sample-label">Opportunity details</p>
+            <button
+              type="button"
+              className="generated-status-close"
+              aria-label="Close details"
+              onClick={() => setSelected(null)}
+            >
+              <X size={22} />
+            </button>
+            <div className="discovery-detail-art">
+              <OpportunityCardArt
+                item={selected}
+                color={cardAppearance(selected).color}
+              />
+            </div>
+            <p className="sample-label">
+              {cardAppearance(selected).kind} · Opportunity details
+            </p>
             <h2>{selected.title}</h2>
-            <p>{selected.organizer}</p>
-            <p>{selected.deadline ? `Deadline: ${formatDeadline(selected.deadline)}` : "Deadline: Not mentioned"}</p>
-            {detailBusy && <p role="status">Muse Wonder is checking this opportunity…</p>}
-            {detailError && <p role="alert">{detailError}</p>}
-            {detail && <div className="discovery-detail-copy">{detail}</div>}
-            <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">Open original page <ArrowUpRight size={16} /></a>
+            <p className="discovery-detail-subtitle">{selected.organizer}</p>
+            <p className="discovery-detail-description">
+              {selected.description}
+            </p>
+            <div className="discovery-detail-facts">
+              <div>
+                <Clock size={18} />
+                <small>Application deadline</small>
+                <strong>
+                  {selected.deadline
+                    ? formatDeadline(selected.deadline)
+                    : "Not mentioned"}
+                </strong>
+              </div>
+              <div>
+                <CalendarDays size={18} />
+                <small>Event date</small>
+                <strong>
+                  {selected.eventDate
+                    ? formatDeadline(selected.eventDate)
+                    : "Not mentioned"}
+                </strong>
+              </div>
+              <div>
+                <Sparkles size={18} />
+                <small>Why it may fit</small>
+                <strong>
+                  {selected.reason ||
+                    "Explore whether this matches your interests."}
+                </strong>
+              </div>
+              <div>
+                <ExternalLink size={18} />
+                <small>Source</small>
+                <strong>{new URL(selected.sourceUrl).hostname}</strong>
+              </div>
+            </div>
+            <div className="discovery-detail-columns">
+              <section>
+                <h3>About this opportunity</h3>
+                <p>{selected.description}</p>
+                <h3>Research & guidance</h3>
+                {detailBusy && (
+                  <p role="status">Muse Wonder is checking this opportunity…</p>
+                )}
+                {detailError && <p role="alert">{detailError}</p>}
+                {detailProvider && (
+                  <p className="discovery-detail-provider">
+                    {detailProvider === "Muse Wonder"
+                      ? "Researched with Muse Wonder. Confirm details on the official page."
+                      : detailProvider === "Muse Spark"
+                        ? "General guidance from Muse Spark. Page details were not verified."
+                        : "General preparation template. Page details were not verified."}
+                  </p>
+                )}
+                {detail && (
+                  <div className="discovery-detail-copy">{detail}</div>
+                )}
+                {!detailBusy && !detail && (
+                  <p>
+                    Open the source page to confirm eligibility, application
+                    steps, and the exact deadline.
+                  </p>
+                )}
+                {detailSources.length > 0 && (
+                  <div className="discovery-detail-sources">
+                    <h3>Sources</h3>
+                    {detailSources.map((source) => (
+                      <a
+                        key={source.url}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {source.title} <ArrowUpRight size={14} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+              <aside>
+                <h3>What to check</h3>
+                <ul className="discovery-detail-checklist">
+                  <li>
+                    <Check size={16} />
+                    Confirm eligibility and location on the source page.
+                  </li>
+                  <li>
+                    <Check size={16} />
+                    Check the deadline, time zone, and application steps.
+                  </li>
+                  <li>
+                    <Check size={16} />
+                    Prepare examples of your relevant work or experience.
+                  </li>
+                </ul>
+                <h3>Helpful next steps</h3>
+                <p>
+                  Read the official rules, note any required documents, and plan
+                  time to apply before the deadline.
+                </p>
+                <a
+                  className="discovery-video-link"
+                  href={
+                    detailSources.find((source) =>
+                      /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(
+                        new URL(source.url).hostname,
+                      ),
+                    )?.url ||
+                    `https://www.youtube.com/results?search_query=${encodeURIComponent(`${cardAppearance(selected).kind} preparation tips`)}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Play size={16} />
+                  {detailSources.some((source) =>
+                    /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(
+                      new URL(source.url).hostname,
+                    ),
+                  )
+                    ? "Watch a related video"
+                    : "Search YouTube for preparation tips"}
+                  <ArrowUpRight size={14} />
+                </a>
+                <small>
+                  {detailSources.some((source) =>
+                    /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(
+                      new URL(source.url).hostname,
+                    ),
+                  )
+                    ? "Video linked from research results; review its relevance."
+                    : "Opens a YouTube search, not a verified video for this listing."}
+                </small>
+              </aside>
+            </div>
+            <div className="discovery-detail-actions">
+              {onToggleInterested && (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={savingSourceUrl === selected.sourceUrl}
+                  onClick={() => onToggleInterested(selected)}
+                >
+                  <Bookmark
+                    size={16}
+                    fill={
+                      savedSourceUrls.includes(selected.sourceUrl)
+                        ? "currentColor"
+                        : "none"
+                    }
+                  />
+                  {savedSourceUrls.includes(selected.sourceUrl)
+                    ? "Remove from Interested"
+                    : "I'm interested"}
+                </button>
+              )}
+              <a
+                href={selected.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open original page <ArrowUpRight size={16} />
+              </a>
+            </div>
           </div>
         </div>
       )}
