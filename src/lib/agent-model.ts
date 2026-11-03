@@ -611,8 +611,20 @@ export async function explainOpportunityWithMuse(
     }),
     signal: AbortSignal.timeout(55000),
   });
-  if (!response.ok) throw new Error("MODEL_UNAVAILABLE");
-  const parsed = parseAgentReply(await response.json(), true);
+  if (!response.ok) {
+    const problem = await response.json().catch(() => null);
+    console.error("Muse Wonder detail request failed", {
+      status: response.status,
+      code: problem?.error?.code || problem?.error?.type || "unknown",
+    });
+    throw new Error("MODEL_UNAVAILABLE");
+  }
+  const body = await response.json();
+  console.info("Muse Wonder detail response", {
+    status: body.status,
+    outputTypes: (body.output || []).map((item: { type: string }) => item.type),
+  });
+  const parsed = parseAgentReply(body, true);
   return { content: parsed.content.slice(0, 4500), sources: parsed.sources.slice(0, 6) };
 }
 

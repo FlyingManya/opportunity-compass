@@ -610,7 +610,10 @@ export async function handleAgent(
         (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
       );
       return json(detail);
-    } catch {
+    } catch (error) {
+      console.error("Muse Wonder detail unavailable", {
+        code: error instanceof Error ? error.message : "unknown",
+      });
       return json({ error: "Muse Wonder could not summarize this page. Open the source to review it directly." }, 502);
     }
   }
