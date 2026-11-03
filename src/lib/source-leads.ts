@@ -2,6 +2,19 @@ import type { OpportunityIdentity } from "./opportunity-duplicates";
 import { publicLink } from "./shared-links";
 
 type SearchSource = { title: string; url: string };
+const nonEventDevpostHosts = new Set([
+  "secure", "info", "blog", "help", "support", "www", "api", "docs",
+]);
+
+export function plausibleEventSource(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (!host.endsWith(".devpost.com")) return true;
+    return !nonEventDevpostHosts.has(host.split(".")[0]);
+  } catch {
+    return false;
+  }
+}
 
 // A search citation is a lead, not proof that registration is still open.
 export function hackathonLeadsFromSources(
@@ -20,7 +33,7 @@ export function hackathonLeadsFromSources(
     const url = publicLink(source.url);
     if (!url) continue;
     const host = new URL(url).hostname.toLowerCase();
-    if (!host.endsWith(".devpost.com") || host === "secure.devpost.com")
+    if (!host.endsWith(".devpost.com") || !plausibleEventSource(url))
       continue;
     if (seen.has(host)) continue;
     const title = source.title
@@ -38,7 +51,7 @@ export function hackathonLeadsFromSources(
     if (years.length && Math.max(...years) < year) continue;
     if (
       /\b(ai|artificial intelligence|machine learning)\b/i.test(request) &&
-      !/\b(ai|artificial intelligence|machine learning|agent|hackathon|build|code)\b/i.test(
+      !/\b(ai|artificial intelligence|machine learning|agent)\b/i.test(
         `${title} ${host}`,
       )
     )

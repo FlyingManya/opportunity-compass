@@ -21,7 +21,7 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
-import { hackathonLeadsFromSources } from "../src/lib/source-leads";
+import { hackathonLeadsFromSources, plausibleEventSource } from "../src/lib/source-leads";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -175,6 +175,14 @@ test("hackathon search citations become distinct source leads without inventing 
         title: "AI hackathon directory",
         url: "https://devpost.com/c/artificial-intelligence",
       },
+      {
+        title: "The World's #1 Hackathon Platform | Book a Demo",
+        url: "https://info.devpost.com/book-a-demo",
+      },
+      {
+        title: "DevFest Hackathon 2026",
+        url: "https://devfest-hackathon-2026.devpost.com/",
+      },
     ],
     "Find AI hackathons I can join remotely",
     [
@@ -194,6 +202,7 @@ test("hackathon search citations become distinct source leads without inventing 
       sourceUrl: "https://new-ai-2026.devpost.com/",
     },
   ]);
+  assert.equal(plausibleEventSource("https://info.devpost.com/book-a-demo"), false);
 });
 
 test("incoming phone share preserves a caption and extracts its link", () => {

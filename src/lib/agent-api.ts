@@ -22,7 +22,7 @@ import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
-import { hackathonLeadsFromSources } from "./source-leads";
+import { hackathonLeadsFromSources, plausibleEventSource } from "./source-leads";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
@@ -647,7 +647,7 @@ export async function handleAgent(
       ...currentManual,
       ...curated,
       ...rows,
-      ...unverifiedRows,
+      ...unverifiedRows.filter((item) => plausibleEventSource(item.sourceUrl)),
     ]).sort((left, right) =>
       (
         left.deadline ||
