@@ -664,7 +664,7 @@ export default function DiscoveryFeed({
                   </button>
                   <span className="art-badge">
                     {item.provenance === "demo"
-                      ? "DEMO · MANUALLY ADDED"
+                      ? "MANUALLY ADDED"
                       : item.provenance === "curated"
                         ? "OFFICIAL SOURCE"
                         : item.status?.startsWith("Search lead")
@@ -709,13 +709,13 @@ export default function DiscoveryFeed({
                     <span className={`category-pill ${appearance.color}`}>
                       {appearance.kind}
                     </span>
-                    <span className="card-format">
-                      {item.provenance === "demo"
-                        ? "Demo selection"
-                        : item.status?.startsWith("Search lead")
+                    {item.provenance !== "demo" && (
+                      <span className="card-format">
+                        {item.status?.startsWith("Search lead")
                           ? "Details unverified"
                           : "Real opportunity"}
-                    </span>
+                      </span>
+                    )}
                     {!item.provenance && (
                       <button
                         type="button"
