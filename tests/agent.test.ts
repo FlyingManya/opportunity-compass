@@ -21,7 +21,7 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
-import { currentDevpostEvent, hackathonLeadsFromSources, plausibleEventSource } from "../src/lib/source-leads";
+import { currentDevpostEvent, hackathonLeadsFromSources, liveDevpostHackathons, plausibleEventSource } from "../src/lib/source-leads";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -213,6 +213,24 @@ test("Devpost event leads must still be current and remote when requested", asyn
   assert.equal(await currentDevpostEvent("https://past.devpost.com/", "2026-11-03", false, fetcher as typeof fetch), false);
   assert.equal(await currentDevpostEvent("https://offline.devpost.com/", "2026-11-03", true, fetcher as typeof fetch), false);
   assert.equal(await currentDevpostEvent("https://current.devpost.com/rules", "2026-11-03", true, fetcher as typeof fetch), true);
+});
+
+test("live Devpost search adds only open online AI events with confirmed dates", async () => {
+  const fetcher = async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.startsWith("https://devpost.com/api/hackathons?")) {
+      return Response.json({ hackathons: [
+        { title: "Fresh AI Hackathon", url: "https://fresh-ai.devpost.com/", open_state: "open", displayed_location: { location: "Online" }, themes: [{ name: "Machine Learning/AI" }] },
+        { title: "Local AI Hackathon", url: "https://local-ai.devpost.com/", open_state: "open", displayed_location: { location: "New York" }, themes: [{ name: "Machine Learning/AI" }] },
+        { title: "Old AI Hackathon", url: "https://old-ai.devpost.com/", open_state: "open", displayed_location: { location: "Online" }, themes: [{ name: "Machine Learning/AI" }] },
+      ] });
+    }
+    const endDate = url.includes("old-ai") ? "2026-03-10" : "2026-11-12";
+    return new Response(`<script id="challenge-json-ld" type="application/ld+json">${JSON.stringify({ name: "Fresh AI Hackathon", organizer: { name: "Fresh" }, endDate, eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" })}</script>`);
+  };
+  assert.deepEqual(await liveDevpostHackathons("Find remote AI hackathons", "2026-11-03", [], fetcher as typeof fetch), [
+    { title: "Fresh AI Hackathon", organizer: "Fresh", sourceUrl: "https://fresh-ai.devpost.com/", deadline: "2026-11-12" },
+  ]);
 });
 
 test("incoming phone share preserves a caption and extracts its link", () => {

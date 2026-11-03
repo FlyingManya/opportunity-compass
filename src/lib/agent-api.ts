@@ -22,7 +22,7 @@ import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
-import { currentDevpostEvent, hackathonLeadsFromSources, isDevpostEventSource, plausibleEventSource } from "./source-leads";
+import { currentDevpostEvent, hackathonLeadsFromSources, isDevpostEventSource, liveDevpostHackathons, plausibleEventSource } from "./source-leads";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
@@ -649,7 +649,7 @@ export async function handleAgent(
         if (!plausibleEventSource(item.sourceUrl)) return null;
         if (!isDevpostEventSource(item.sourceUrl)) return item;
         try {
-          return (await currentDevpostEvent(item.sourceUrl, today, !!item.requestedRemote))
+          return (await currentDevpostEvent(item.sourceUrl, today, item.requestedRemote !== false))
             ? item
             : null;
         } catch {
@@ -934,6 +934,27 @@ export async function handleAgent(
           known.push(candidate);
           if (unverified) leadsAdded++;
           else added++;
+        }
+        if (added + leadsAdded < 4) {
+          const live = await liveDevpostHackathons(message, today, known);
+          for (const item of live.slice(0, 4 - added - leadsAdded)) {
+            await discoveries.updateOne(
+              { userId, sourceUrl: item.sourceUrl },
+              {
+                $set: {
+                  userId,
+                  ...item,
+                  description: "An open event listed by Devpost. Check the official rules for eligibility and submission requirements.",
+                  reason: "Matches your hackathon search; the event page confirms its closing date.",
+                  discoveredAt: new Date().toISOString(),
+                  status: "Verified on Devpost; confirm eligibility before applying",
+                },
+              },
+              { upsert: true },
+            );
+            known.push(item);
+            added++;
+          }
         }
         if (added + leadsAdded < 4) {
           const sourceLeads = hackathonLeadsFromSources(
