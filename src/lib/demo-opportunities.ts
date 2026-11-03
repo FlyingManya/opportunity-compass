@@ -6,6 +6,8 @@ export type DemoOpportunity = {
   organizer: string;
   description: string;
   deadline: string;
+  deadlineEvidence?: string;
+  deadlineSourceUrl?: string;
   eventDate?: string;
   reason: string;
   provenance: "demo";

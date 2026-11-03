@@ -781,6 +781,59 @@
   opacity: 0.7;
   cursor: wait;
 }
+.discovery-deadline-details {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  min-width: 0;
+}
+.discovery-deadline-details > span {
+  flex-wrap: wrap;
+}
+.discovery-find-deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d9c9ed !important;
+  border-radius: 7px;
+  background: #f7f1ff !important;
+  color: #7150a0 !important;
+  padding: 4px 7px !important;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.discovery-find-deadline:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.discovery-deadline-feedback {
+  flex-basis: 100%;
+  color: #6b587d;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.discovery-detail-facts .discovery-find-deadline {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 5px;
+}
+.discovery-detail-facts .discovery-deadline-feedback {
+  grid-column: 2;
+}
+.discovery-detail-facts .discovery-deadline-source {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #7150a0;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .discovery-detail-panel {
   width: min(980px, 100%);
   max-height: min(900px, 94vh);

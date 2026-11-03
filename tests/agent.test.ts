@@ -21,6 +21,7 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
 import { sourceQueue } from "../src/lib/source-queue";
+import { parseDeadlineResearch } from "../src/lib/deadline-research";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -273,14 +274,12 @@ test("opening an owned card asks Muse Wonder for details on demand", async () =>
   }) as typeof fetch;
   try {
     const db = memoryDatabase();
-    await db
-      .collection("discovered_opportunities")
-      .insertOne({
-        userId: "alice",
-        sourceUrl: "https://literary.example.org/essay",
-        title: "Essay competition",
-        deadline: "",
-      });
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl: "https://literary.example.org/essay",
+      title: "Essay competition",
+      deadline: "",
+    });
     const result = await handleAgent(
       db,
       "alice",
@@ -337,14 +336,12 @@ test("card details fall back to Muse Spark when Wonder cannot research", async (
   try {
     const db = memoryDatabase();
     const sourceUrl = "https://example.org/hackathon";
-    await db
-      .collection("discovered_opportunities")
-      .insertOne({
-        userId: "alice",
-        sourceUrl,
-        title: "AI Hackathon",
-        deadline: "",
-      });
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl,
+      title: "AI Hackathon",
+      deadline: "",
+    });
     const response = await handleAgent(
       db,
       "alice",
@@ -358,6 +355,126 @@ test("card details fall back to Muse Spark when Wonder cannot research", async (
     assert.equal(result.verified, false);
     assert.match(result.content, /portfolio/);
     assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = oldKey;
+  }
+});
+
+test("deadline research accepts only a cited valid date for the same opportunity", () => {
+  const url = "https://event.example.org/challenge";
+  const content = JSON.stringify({
+    deadline: "2999-01-20",
+    evidence: "Applications close on 20 January 2999.",
+    sourceUrl: url,
+  });
+  assert.equal(
+    parseDeadlineResearch(content, [{ url }], url, "2026-11-03")?.deadline,
+    "2999-01-20",
+  );
+  assert.equal(parseDeadlineResearch(content, [], url, "2026-11-03"), null);
+  assert.equal(
+    parseDeadlineResearch(
+      content,
+      [{ url: "https://event.example.org/another" }],
+      url,
+      "2026-11-03",
+    ),
+    null,
+  );
+  assert.equal(
+    parseDeadlineResearch(
+      content.replace("2999-01-20", "2999-02-30"),
+      [{ url }],
+      url,
+      "2026-11-03",
+    ),
+    null,
+  );
+  assert.equal(
+    parseDeadlineResearch(content, [{ url }], url, "3000-01-01")?.expired,
+    true,
+  );
+});
+
+test("Muse deadline recheck updates a card and its Interested calendar date", async () => {
+  const oldKey = process.env.MODEL_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.MODEL_API_KEY = "test-only";
+  const sourceUrl = "https://event.example.org/challenge";
+  let model = "";
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    model = JSON.parse(String(init.body)).model;
+    return Response.json({
+      output: [
+        {
+          type: "web_search_call",
+          results: [{ title: "Challenge page", url: sourceUrl }],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: JSON.stringify({
+                deadline: "2999-01-20",
+                evidence: "Applications close on 20 January 2999.",
+                sourceUrl,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl,
+      title: "AI Challenge",
+      deadline: "",
+      organizer: "Organizer",
+      description: "An event",
+      reason: "Relevant",
+    });
+    await db.collection("saved_researched").insertOne({
+      userId: "alice",
+      sourceUrl,
+      title: "AI Challenge",
+      deadline: "",
+      id: "saved",
+    });
+    const call = (userId: string) =>
+      handleAgent(
+        db,
+        userId,
+        emptyProfile,
+        "agent/discoveries/deadline",
+        "POST",
+        async () => ({ sourceUrl }),
+      );
+    assert.equal((await call("bob")).status, 404);
+    const result = await (await call("alice")).json();
+    assert.equal(result.deadline, "2999-01-20");
+    assert.equal(model, "muse-wonder-1.0");
+    assert.equal(
+      (
+        await db
+          .collection("discovered_opportunities")
+          .findOne({ userId: "alice", sourceUrl })
+      )?.deadline,
+      "2999-01-20",
+    );
+    assert.equal(
+      (
+        await db
+          .collection("saved_researched")
+          .findOne({ userId: "alice", sourceUrl })
+      )?.deadline,
+      "2999-01-20",
+    );
   } finally {
     globalThis.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.MODEL_API_KEY;

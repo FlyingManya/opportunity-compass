@@ -1140,6 +1140,15 @@ export default function Compass({ initialUser }: { initialUser: User }) {
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
                 onCountChange={setResearchCount}
+                onDeadlineFound={(sourceUrl, deadline) =>
+                  setResearchedSaved((previous) =>
+                    previous.map((entry) =>
+                      entry.sourceUrl === sourceUrl
+                        ? { ...entry, deadline }
+                        : entry,
+                    ),
+                  )
+                }
                 savedSourceUrls={researchedSaved.map(
                   (entry) => entry.sourceUrl,
                 )}

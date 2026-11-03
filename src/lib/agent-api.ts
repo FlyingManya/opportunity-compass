@@ -22,6 +22,7 @@ import {
   askAgent,
   explainOpportunityWithMuse,
   explainOpportunityWithSpark,
+  findDeadlineWithMuse,
   extractProfileKeywordsWithMeta,
   isDiscoveryRequest,
 } from "./agent-model";
@@ -42,6 +43,8 @@ type DiscoveredOpportunity = OpportunityIdentity & {
   discoveredAt: string;
   status: string;
   requestedRemote?: boolean;
+  deadlineEvidence?: string;
+  deadlineSourceUrl?: string;
 };
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -570,6 +573,91 @@ export async function handleAgent(
         {
           error:
             "Muse Image could not create this status. Please try again later.",
+        },
+        502,
+      );
+    }
+  }
+  if (path === "agent/discoveries/deadline" && method === "POST") {
+    const body = (await input()) as { sourceUrl?: unknown };
+    const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
+    const sourceUrl = publicLink(rawUrl);
+    if (!sourceUrl)
+      return json({ error: "A valid dashboard link is required." }, 400);
+    const matches = { userId, sourceUrl: { $in: [rawUrl, sourceUrl] } };
+    const researched = await discoveries.findOne(matches);
+    const demo = researched ? null : await manual.findOne(matches);
+    const opportunity = researched || demo;
+    if (!opportunity)
+      return json({ error: "This card is not in your dashboard." }, 404);
+    if (opportunity.deadline)
+      return json({
+        deadline: opportunity.deadline,
+        found: true,
+        alreadyKnown: true,
+      });
+    if (!(await allowed(db, userId, "deadline-recheck")))
+      return json({ error: "Please try again in a little while." }, 429);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: profile.timezone || "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    try {
+      const finding = await findDeadlineWithMuse(
+        sourceUrl,
+        opportunity.title,
+        today,
+      );
+      if (!finding)
+        return json({
+          found: false,
+          message:
+            "Muse Wonder could not confirm an application deadline on this source. You can check the page or try again later.",
+        });
+      if (finding.expired)
+        return json({
+          found: false,
+          expired: true,
+          message: `Muse Wonder found a past deadline (${finding.deadline}). Check the source for a new edition.`,
+        });
+      const update = {
+        deadline: finding.deadline,
+        deadlineEvidence: finding.evidence,
+        deadlineSourceUrl: finding.sourceUrl,
+      };
+      const target = researched ? discoveries : manual;
+      const result = await target.updateOne(
+        { userId, sourceUrl: opportunity.sourceUrl, deadline: "" },
+        { $set: update },
+      );
+      if (!result.matchedCount)
+        return json({
+          found: false,
+          message:
+            "This card changed while Muse was searching. Refresh the dashboard to see its latest date.",
+        });
+      await db
+        .collection<ResearchedSaved & { userId: string }>("saved_researched")
+        .updateOne(
+          { userId, sourceUrl: opportunity.sourceUrl },
+          { $set: { deadline: finding.deadline } },
+        );
+      return json({
+        found: true,
+        deadline: finding.deadline,
+        sourceUrl: finding.sourceUrl,
+        evidence: finding.evidence,
+      });
+    } catch (error) {
+      console.error("Muse Wonder deadline lookup unavailable", {
+        code: error instanceof Error ? error.message : "unknown",
+      });
+      return json(
+        {
+          error:
+            "Muse Wonder could not check this deadline right now. Please try again later.",
         },
         502,
       );

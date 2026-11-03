@@ -21,6 +21,8 @@ type Discovery = {
   organizer: string;
   description: string;
   deadline: string;
+  deadlineEvidence?: string;
+  deadlineSourceUrl?: string;
   reason: string;
   status?: string;
   provenance?: "curated" | "demo";
@@ -166,12 +168,14 @@ export default function DiscoveryFeed({
   savedSourceUrls = [],
   savingSourceUrl = "",
   onToggleInterested,
+  onDeadlineFound,
   onCountChange,
 }: {
   openStatusSignal?: number;
   savedSourceUrls?: string[];
   savingSourceUrl?: string;
   onToggleInterested?: (item: Discovery) => void;
+  onDeadlineFound?: (sourceUrl: string, deadline: string) => void;
   onCountChange?: (count: number) => void;
 }) {
   const [items, setItems] = useState<Discovery[]>([]);
@@ -191,6 +195,11 @@ export default function DiscoveryFeed({
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [deadlineBusyUrl, setDeadlineBusyUrl] = useState("");
+  const [deadlineMessages, setDeadlineMessages] = useState<
+    Record<string, string>
+  >({});
+  const [deadlineAttempted, setDeadlineAttempted] = useState<string[]>([]);
   useEffect(() => {
     if (!loading) onCountChange?.(items.length);
   }, [items.length, loading, onCountChange]);
@@ -219,6 +228,69 @@ export default function DiscoveryFeed({
       );
     } finally {
       setDetailBusy(false);
+    }
+  }
+  async function findDeadline(item: Discovery) {
+    if (deadlineBusyUrl) return;
+    setDeadlineBusyUrl(item.sourceUrl);
+    setDeadlineMessages((previous) => ({ ...previous, [item.sourceUrl]: "" }));
+    setDeadlineAttempted((previous) =>
+      previous.includes(item.sourceUrl)
+        ? previous
+        : [...previous, item.sourceUrl],
+    );
+    try {
+      const response = await fetch("/api/agent/discoveries/deadline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: item.sourceUrl }),
+        signal: AbortSignal.timeout(65000),
+      });
+      const body = await response.json();
+      if (!response.ok)
+        throw new Error(body.error || "Muse Wonder could not check this date.");
+      if (body.found && body.deadline) {
+        const dateUpdate = {
+          deadline: body.deadline,
+          deadlineEvidence: body.evidence,
+          deadlineSourceUrl: body.sourceUrl,
+        };
+        setItems((previous) =>
+          previous.map((entry) =>
+            entry.sourceUrl === item.sourceUrl
+              ? { ...entry, ...dateUpdate }
+              : entry,
+          ),
+        );
+        setSelected((previous) =>
+          previous?.sourceUrl === item.sourceUrl
+            ? { ...previous, ...dateUpdate }
+            : previous,
+        );
+        onDeadlineFound?.(item.sourceUrl, body.deadline);
+        setDeadlineMessages((previous) => ({
+          ...previous,
+          [item.sourceUrl]:
+            "Deadline found by Muse Wonder. Confirm it on the source page.",
+        }));
+      } else {
+        setDeadlineMessages((previous) => ({
+          ...previous,
+          [item.sourceUrl]:
+            body.message ||
+            "No published deadline found. Check the source or try again later.",
+        }));
+      }
+    } catch (error) {
+      setDeadlineMessages((previous) => ({
+        ...previous,
+        [item.sourceUrl]:
+          error instanceof Error
+            ? error.message
+            : "Could not check this deadline. Try again later.",
+      }));
+    } finally {
+      setDeadlineBusyUrl("");
     }
   }
   async function refreshCards() {
@@ -538,14 +610,40 @@ export default function DiscoveryFeed({
                     {item.description}
                   </p>
                   <div className="card-bottom">
-                    <span>
-                      <Clock size={12} />{" "}
-                      {item.deadline
-                        ? `Apply by ${formatDeadline(item.deadline)}`
-                        : item.eventDate
-                          ? `Event on ${formatDeadline(item.eventDate)}`
+                    <div className="discovery-deadline-details">
+                      <span>
+                        <Clock size={12} />{" "}
+                        {item.deadline
+                          ? `Apply by ${formatDeadline(item.deadline)}`
                           : "Deadline not mentioned"}
-                    </span>
+                      </span>
+                      {!item.deadline && item.eventDate && (
+                        <span>Event on {formatDeadline(item.eventDate)}</span>
+                      )}
+                      {!item.deadline && (
+                        <button
+                          type="button"
+                          className="discovery-find-deadline"
+                          disabled={!!deadlineBusyUrl}
+                          onClick={() => findDeadline(item)}
+                        >
+                          <Sparkles size={13} />
+                          {deadlineBusyUrl === item.sourceUrl
+                            ? "Muse is checking…"
+                            : deadlineAttempted.includes(item.sourceUrl)
+                              ? "Try again with Muse AI"
+                              : "Find with Muse AI"}
+                        </button>
+                      )}
+                      {deadlineMessages[item.sourceUrl] && (
+                        <small
+                          className="discovery-deadline-feedback"
+                          role="status"
+                        >
+                          {deadlineMessages[item.sourceUrl]}
+                        </small>
+                      )}
+                    </div>
                     <a
                       href={item.sourceUrl}
                       target="_blank"
@@ -603,6 +701,37 @@ export default function DiscoveryFeed({
                     ? formatDeadline(selected.deadline)
                     : "Not mentioned"}
                 </strong>
+                {selected.deadlineEvidence && selected.deadlineSourceUrl && (
+                  <a
+                    className="discovery-deadline-source"
+                    href={selected.deadlineSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Muse found: {selected.deadlineEvidence}{" "}
+                    <ArrowUpRight size={13} />
+                  </a>
+                )}
+                {!selected.deadline && (
+                  <button
+                    type="button"
+                    className="discovery-find-deadline"
+                    disabled={!!deadlineBusyUrl}
+                    onClick={() => findDeadline(selected)}
+                  >
+                    <Sparkles size={13} />
+                    {deadlineBusyUrl === selected.sourceUrl
+                      ? "Muse is checking…"
+                      : deadlineAttempted.includes(selected.sourceUrl)
+                        ? "Try again with Muse AI"
+                        : "Find with Muse AI"}
+                  </button>
+                )}
+                {deadlineMessages[selected.sourceUrl] && (
+                  <small className="discovery-deadline-feedback" role="status">
+                    {deadlineMessages[selected.sourceUrl]}
+                  </small>
+                )}
               </div>
               <div>
                 <CalendarDays size={18} />
