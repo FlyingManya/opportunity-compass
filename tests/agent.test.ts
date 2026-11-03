@@ -983,6 +983,37 @@ test("model requests select the configured transport and do not expose keys in s
     assert.ok(calls[6].body.input.includes("https://devpost.com/hackathons"));
     assert.ok(calls[6].body.input.includes("https://womenhack.com/events/"));
     assert.ok(!calls[6].body.input.includes("Private prior chat"));
+    const listed = [
+      {
+        title: "PayPal AI Hackathon",
+        organizer: "PayPal",
+        deadline: "2026-11-14",
+        sourceUrl: "https://paypal.example/hackathon",
+      },
+    ];
+    await askAgent(
+      { ...emptyAgentPreferences, useMetaContext: true },
+      emptyProfile,
+      [],
+      privateHistory,
+      null,
+      true,
+      undefined,
+      listed,
+    );
+    assert.ok(calls[7].body.input.includes("PayPal AI Hackathon"));
+    assert.ok(calls[7].body.input.includes("four DIFFERENT opportunities"));
+    await askAgent(
+      emptyAgentPreferences,
+      emptyProfile,
+      [],
+      privateHistory,
+      null,
+      true,
+      undefined,
+      listed,
+    );
+    assert.ok(!JSON.stringify(calls[8].body).includes("PayPal AI Hackathon"));
   } finally {
     globalThis.fetch = original;
     keys.forEach((key, index) => {

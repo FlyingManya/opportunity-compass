@@ -8,6 +8,7 @@ import type { Profile } from "./types";
 import { publicLink } from "./shared-links";
 import { sourceExamples } from "./source-examples";
 import type { Binary } from "mongodb";
+import type { OpportunityIdentity } from "./opportunity-duplicates";
 
 type Settings = {
   key: string;
@@ -245,6 +246,7 @@ export async function askAgent(
   resume?: { type: string; data: Binary } | null,
   discover = false,
   metaModelOverride?: string,
+  alreadyListed: OpportunityIdentity[] = [],
 ): Promise<{
   content: string;
   sources: { title: string; url: string }[];
@@ -257,7 +259,7 @@ export async function askAgent(
     leads,
     config.provider !== "hosted",
   );
-  const discoveryInstructions = `\nDISCOVERY TASK: You must use web_search now, even when the user names an event. Search the official organizer page for the latest request and verify the actual application deadline from that page. Return only a JSON object: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD","sourceUrl":"https://...","reason":"..."}]}. Include at most 4. Copy each sourceUrl exactly from an official organizer or application page in your search results; the page must explicitly confirm the deadline. Do not construct or rewrite URLs. Exclude expired, closed, uncertain, student-only opportunities for a working professional unless their profile says they are a student, and any result without an exact future deadline. Cite each official source in the response. Return an empty array if none meet these rules. No Markdown or commentary.`;
+  const discoveryInstructions = `\nDISCOVERY TASK: You must use web_search now, even when the user names an event. Search multiple current listings and each official organizer page for the latest request. Aim for four DIFFERENT opportunities with verified future application or submission deadlines; do not stop after finding one. Return only a JSON object: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD","sourceUrl":"https://...","reason":"..."}]}. Include up to 4. Copy each sourceUrl exactly from an official organizer or application page in your search results; the page must explicitly confirm the deadline. Do not construct or rewrite URLs. Exclude expired, closed, uncertain, student-only opportunities for a working professional unless their profile says they are a student, and any result without an exact future deadline. Cite each official source in the response. Return an empty array only if no listings meet these rules. No Markdown or commentary.`;
   if (discover && (config.provider === "claude" || config.provider === "meta"))
     instructions += discoveryInstructions;
   if (config.provider === "meta" && !preferences.useMetaContext) {
@@ -283,7 +285,18 @@ export async function askAgent(
   }
   if (discover && /\bhackathons?\b/i.test(history.at(-1)?.content || "")) {
     instructions +=
-      "\nFor hackathons, search current individual listings on https://devpost.com/c/artificial-intelligence as a starting point, then use each event's official page to verify that it is online and has a future deadline. Do not use the directory itself as an opportunity source.";
+      "\nFor hackathons, search current individual listings on https://devpost.com/c/artificial-intelligence as a starting point. It lists many online events: inspect several distinct event pages and select up to four that match the user's request. Use each event's official page to verify that it is online, open to this user, and has a future deadline. Do not use the directory itself as an opportunity source.";
+  }
+  if (
+    discover &&
+    config.provider === "meta" &&
+    preferences.useMetaContext &&
+    alreadyListed.length
+  ) {
+    instructions += `\nAlready visible on this user's dashboard (do not return these or another page for the same event): ${alreadyListed
+      .slice(0, 25)
+      .map((item) => `${item.title} ${item.sourceUrl}`)
+      .join("; ")}. Continue searching for different current events.`;
   }
   const messages = (
     config.provider === "meta" && !preferences.useMetaContext
@@ -474,6 +487,7 @@ export async function askAgent(
         resume,
         discover,
         config.model,
+        alreadyListed,
       );
     }
     throw error;
@@ -509,6 +523,7 @@ export async function askAgent(
         resume,
         discover,
         config.model,
+        alreadyListed,
       );
     throw new Error("MODEL_UNAVAILABLE");
   }

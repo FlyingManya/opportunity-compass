@@ -783,11 +783,32 @@ export async function handleAgent(
         .limit(12)
         .toArray();
       const discover = agentMode().search && isDiscoveryRequest(message);
+      const conversation = recent.reverse() as unknown as AgentMessage[];
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: profile.timezone || "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      const preferences = (settings?.preferences ||
+        emptyAgentPreferences) as AgentPreferences;
+      const known: OpportunityIdentity[] = discover
+        ? [
+            ...curatedForUser(
+              preferences,
+              conversation,
+              imports as unknown as SharedLead[],
+              today,
+            ),
+            ...(await manual.find({ userId }).toArray()),
+            ...(await discoveries.find({ userId }).toArray()),
+          ]
+        : [];
       const result = await askAgent(
-        (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
+        preferences,
         profile,
         imports as unknown as SharedLead[],
-        recent.reverse() as unknown as AgentMessage[],
+        conversation,
         settings?.preferences?.useResume
           ? await db
               .collection<{ userId: string; type: string; data: Binary }>(
@@ -796,6 +817,8 @@ export async function handleAgent(
               .findOne({ userId })
           : null,
         discover,
+        undefined,
+        known,
       );
       if (!result) throw new Error("NO_MODEL");
       if (discover) {
@@ -808,29 +831,12 @@ export async function handleAgent(
         } catch {
           // A malformed model response cannot create dashboard entries.
         }
-        const today = new Intl.DateTimeFormat("en-CA", {
-          timeZone: profile.timezone || "Asia/Kolkata",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date());
         const items = Array.isArray(parsed.opportunities)
           ? parsed.opportunities.slice(0, 4)
           : [];
         let added = 0;
         let alreadyListed = 0;
         const skipped = { fields: 0, deadline: 0, source: 0 };
-        const known: OpportunityIdentity[] = [
-          ...curatedForUser(
-            (settings?.preferences ||
-              emptyAgentPreferences) as AgentPreferences,
-            recent as unknown as AgentMessage[],
-            imports as unknown as SharedLead[],
-            today,
-          ),
-          ...(await manual.find({ userId }).toArray()),
-          ...(await discoveries.find({ userId }).toArray()),
-        ];
         for (const item of items) {
           if (
             typeof item.title !== "string" ||
