@@ -6,6 +6,8 @@ Hackathons, competitions, fellowships, events, and jobs appear across different 
 
 The app is a responsive **Next.js, React, and TypeScript** project deployed on **Vercel**, with **MongoDB Atlas** for accounts and user-scoped data. It uses **Meta Model API** for conversation, web research, and opportunity artwork. Muse Code helped develop and refine the application.
 
+**Try the deployed app:** [Opportunity Compass on Vercel](https://opportunity-compass-rust.vercel.app/). Open the link to create an account or sign in; the dashboard is personalized after login. To run it locally, see [Run locally](#run-locally).
+
 ## What a user can do
 
 1. **Create an account** and enter interests, skills, experience, location, and an optional PDF or text résumé.
