@@ -164,7 +164,9 @@ export function agentInstructions(
 export function parseAgentReply(body: Record<string, any>, meta: boolean) {
   const text = meta
     ? (body.output || [])
-        .filter((item: any) => item.type === "message")
+        .filter(
+          (item: any) => item.type === "message" && item.phase !== "commentary",
+        )
         .flatMap((item: any) => item.content || [])
         .filter((part: any) => part.type === "output_text")
         .map((part: any) => part.text || "")
@@ -522,6 +524,9 @@ export async function askAgent(
       ),
       citations: parsed.sources.length,
       contentLength: parsed.content.length,
+      messagePhases: (body.output || [])
+        .filter((item: { type: string }) => item.type === "message")
+        .map((item: { phase?: string }) => item.phase || "final"),
     });
   return parsed;
 }

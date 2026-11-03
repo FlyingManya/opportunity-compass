@@ -301,6 +301,26 @@ test("model adapters parse text and accept only safe cited links", () => {
   assert.equal(result.sources[1].url, "https://example.org/");
   assert.equal(
     parseAgentReply(
+      {
+        output: [
+          {
+            type: "message",
+            phase: "commentary",
+            content: [{ type: "output_text", text: "Searching now." }],
+          },
+          { type: "web_search_call", results: [] },
+          {
+            type: "message",
+            content: [{ type: "output_text", text: '{"opportunities":[]}' }],
+          },
+        ],
+      },
+      true,
+    ).content,
+    '{"opportunities":[]}',
+  );
+  assert.equal(
+    parseAgentReply(
       { choices: [{ message: { content: "An open-model reply" } }] },
       false,
     ).content,
