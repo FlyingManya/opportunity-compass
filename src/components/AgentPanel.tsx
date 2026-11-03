@@ -37,7 +37,7 @@ async function request(path: string, method = "GET", data?: unknown) {
     method,
     headers: data ? { "Content-Type": "application/json" } : undefined,
     body: data ? JSON.stringify(data) : undefined,
-    signal: AbortSignal.timeout(path === "chat" ? 65000 : 50000),
+    signal: AbortSignal.timeout(path === "chat" ? 220000 : 50000),
     cache: "no-store",
   });
   const result = await response.json();

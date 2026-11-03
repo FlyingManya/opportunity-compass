@@ -402,7 +402,11 @@ export async function askAgent(
                 },
         ),
         signal: AbortSignal.timeout(
-          config.provider === "meta" && discover ? 25000 : 35000,
+        config.provider === "meta" && discover
+          ? metaModelOverride
+            ? 80000
+            : 120000
+          : 35000,
         ),
       },
     );

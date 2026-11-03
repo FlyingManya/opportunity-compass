@@ -20,7 +20,7 @@ import { emptyProfile } from "@/lib/types";
 import { catalog } from "@/lib/catalog";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 210;
 const json = (data: unknown, status = 200) =>
   NextResponse.json(data, { status, headers: { "Cache-Control": "no-store" } });
 async function input(req: NextRequest) {
