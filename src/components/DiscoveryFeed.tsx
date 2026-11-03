@@ -138,6 +138,34 @@ export default function DiscoveryFeed({
   const [statusIndex, setStatusIndex] = useState<number | null>(null);
   const [statusError, setStatusError] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
+  const [demoBusy, setDemoBusy] = useState(false);
+  async function addDemoCards() {
+    if (demoBusy) return;
+    setDemoBusy(true);
+    setStatusError("");
+    try {
+      const response = await fetch("/api/agent/demo-seed", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Could not add demo cards.");
+      const refreshed = await fetch("/api/agent/discoveries", {
+        cache: "no-store",
+      });
+      const body = await refreshed.json();
+      if (!refreshed.ok)
+        throw new Error(body.error || "Could not reload cards.");
+      setItems(Array.isArray(body.opportunities) ? body.opportunities : []);
+      setStatusNotice(
+        "Four manually selected demo cards and template Stories are ready.",
+      );
+    } catch (error) {
+      setStatusError(
+        error instanceof Error ? error.message : "Could not add demo cards.",
+      );
+    } finally {
+      setDemoBusy(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     function refresh() {
@@ -285,6 +313,16 @@ export default function DiscoveryFeed({
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
+      {!loading && !items.some((item) => item.provenance === "demo") && (
+        <button
+          type="button"
+          className="text-button"
+          onClick={addDemoCards}
+          disabled={demoBusy}
+        >
+          {demoBusy ? "Adding demo examples…" : "Add demo examples"}
+        </button>
+      )}
       {statusError && (
         <p className="status-error" role="alert">
           {statusError}
