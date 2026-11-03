@@ -1172,6 +1172,11 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                     previous.filter((entry) => entry.sourceUrl !== sourceUrl),
                   )
                 }
+                onSavedSync={() =>
+                  api("agent/interested")
+                    .then((result) => setResearchedSaved(result.items))
+                    .catch(() => {})
+                }
                 savedSourceUrls={researchedSaved.map(
                   (entry) => entry.sourceUrl,
                 )}

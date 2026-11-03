@@ -171,6 +171,7 @@ export default function DiscoveryFeed({
   onToggleInterested,
   onDeadlineFound,
   onOpportunityRemoved,
+  onSavedSync,
   onCountChange,
 }: {
   openStatusSignal?: number;
@@ -179,6 +180,7 @@ export default function DiscoveryFeed({
   onToggleInterested?: (item: Discovery) => void;
   onDeadlineFound?: (sourceUrl: string, deadline: string) => void;
   onOpportunityRemoved?: (sourceUrl: string) => void;
+  onSavedSync?: () => void;
   onCountChange?: (count: number) => void;
 }) {
   const [items, setItems] = useState<Discovery[]>([]);
@@ -426,6 +428,7 @@ export default function DiscoveryFeed({
       setItems(
         Array.isArray(dashboard.opportunities) ? dashboard.opportunities : [],
       );
+      onSavedSync?.();
       setStatusNotice(
         body.removed
           ? `Removed ${body.removed} opportunit${body.removed === 1 ? "y" : "ies"} with passed deadlines.`

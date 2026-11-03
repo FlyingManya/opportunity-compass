@@ -801,7 +801,7 @@
   background: #f7f1ff !important;
   color: #7150a0 !important;
   padding: 4px 7px !important;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.35;
   cursor: pointer;
@@ -817,7 +817,7 @@
   background: transparent !important;
   border: 0 !important;
   padding: 4px 2px !important;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-decoration: underline;
   cursor: pointer;
@@ -847,7 +847,7 @@
   padding: 5px 9px !important;
   background: #7956a6 !important;
   color: #fff !important;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -858,7 +858,7 @@
 .discovery-deadline-feedback {
   flex-basis: 100%;
   color: #6b587d;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 .discovery-detail-facts .discovery-find-deadline {
