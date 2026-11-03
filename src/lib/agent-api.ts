@@ -1005,7 +1005,7 @@ export async function handleAgent(
           id: randomUUID(),
           role: "assistant",
           content: added
-            ? `I added ${added} deadline-checked opportunity${added === 1 ? "" : "ies"}${leadsAdded ? ` and ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} that need date and eligibility checks` : ""} to your Discover dashboard. Please check each official page before applying.`
+            ? `I added ${added} deadline-checked opportunit${added === 1 ? "y" : "ies"}${leadsAdded ? ` and ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} that need date and eligibility checks` : ""} to your Discover dashboard. Please check each official page before applying.`
             : leadsAdded
               ? `I added ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} to your Discover dashboard. Their deadlines and eligibility are not verified yet, so open the official pages before applying.`
               : alreadyListed

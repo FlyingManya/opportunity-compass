@@ -369,6 +369,8 @@ export default function DiscoveryFeed({
                         ? "OFFICIAL SOURCE"
                         : item.status?.startsWith("Search lead")
                           ? "WEB LINK · CHECK DATES"
+                          : item.status?.startsWith("Verified on Devpost")
+                            ? "DEVPOST · DATE CHECKED"
                           : "AI RESEARCHED"}
                   </span>
                   {onToggleInterested && !!item.deadline && (
