@@ -316,7 +316,8 @@ export default function DiscoveryFeed({
         <button
           type="button"
           className="discovery-enter-deadline"
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
             setManualDateUrl((previous) =>
               previous === item.sourceUrl ? "" : item.sourceUrl,
             );
@@ -328,6 +329,7 @@ export default function DiscoveryFeed({
         {manualDateUrl === item.sourceUrl && (
           <form
             className="discovery-manual-date-form"
+            onClick={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault();
               saveManualDeadline(item);
