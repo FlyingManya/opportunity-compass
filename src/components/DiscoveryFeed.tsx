@@ -18,6 +18,7 @@ type Discovery = {
   description: string;
   deadline: string;
   reason: string;
+  status?: string;
   provenance?: "curated" | "demo";
   eventDate?: string;
   statusImageUrl?: string | null;
@@ -227,7 +228,9 @@ export default function DiscoveryFeed({
     setStatusError("");
     setStatusNotice("");
     let completed = 0;
-    const missing = items.filter((item) => !item.statusReady);
+    const missing = items.filter(
+      (item) => !item.statusReady && !!(item.deadline || item.eventDate),
+    );
     const targets = (missing.length ? missing : items).slice(0, 4);
     setTargetTotal(targets.length);
     const outcomes = await Promise.allSettled(
@@ -364,7 +367,9 @@ export default function DiscoveryFeed({
                       ? "DEMO · MANUALLY ADDED"
                       : item.provenance === "curated"
                         ? "OFFICIAL SOURCE"
-                        : "AI RESEARCHED"}
+                        : item.status?.startsWith("Search lead")
+                          ? "WEB LINK · CHECK DATES"
+                          : "AI RESEARCHED"}
                   </span>
                   {onToggleInterested && !!item.deadline && (
                     <button
@@ -398,7 +403,9 @@ export default function DiscoveryFeed({
                     <span className="card-format">
                       {item.provenance === "demo"
                         ? "Demo selection"
-                        : "Real opportunity"}
+                        : item.status?.startsWith("Search lead")
+                          ? "Details unverified"
+                          : "Real opportunity"}
                     </span>
                   </div>
                   <h3>
@@ -421,7 +428,9 @@ export default function DiscoveryFeed({
                         ? `Apply by ${formatDeadline(item.deadline)}`
                         : item.eventDate
                           ? `Event on ${formatDeadline(item.eventDate)}`
-                          : "No deadline published"}
+                          : item.status?.startsWith("Search lead")
+                            ? "Check deadline on official page"
+                            : "No deadline published"}
                     </span>
                     <a
                       href={item.sourceUrl}

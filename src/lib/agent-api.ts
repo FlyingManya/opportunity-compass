@@ -22,6 +22,7 @@ import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
+import { hackathonLeadsFromSources } from "./source-leads";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
@@ -298,15 +299,16 @@ export async function handleAgent(
       !publicLink(body.sourceUrl)
     )
       return json({ error: "Choose an opportunity from your dashboard." }, 400);
-    const opportunity = await statusOpportunity(
-      db,
-      userId,
-      profile,
-      body.sourceUrl,
-    );
+    const opportunity =
+      (await statusOpportunity(db, userId, profile, body.sourceUrl)) ||
+      (await discoveries.findOne({
+        userId,
+        sourceUrl: body.sourceUrl,
+        deadline: "",
+      }));
     if (!opportunity)
       return json({ error: "Opportunity not found on your dashboard." }, 404);
-    if (opportunity.provenance === "demo")
+    if ("provenance" in opportunity && opportunity.provenance === "demo")
       return json({ imageUrl: null, unavailable: true });
     const id = statusId(body.sourceUrl);
     const existing = await cardImages.findOne({ userId, id });
@@ -595,37 +597,43 @@ export async function handleAgent(
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
-    const [rows, saved, recent, shared, manualRows] = await Promise.all([
-      discoveries
-        .find(
-          { userId, deadline: { $gte: today } },
-          { projection: { _id: 0, userId: 0 } },
-        )
-        .sort({ deadline: 1 })
-        .limit(30)
-        .toArray(),
-      briefs.findOne({ userId }, { projection: { _id: 0, userId: 0 } }),
-      messages
-        .find({ userId }, { projection: { _id: 0, userId: 0 } })
-        .sort({ createdAt: -1 })
-        .limit(12)
-        .toArray(),
-      leads
-        .find(
-          { userId, archived: false },
-          { projection: { _id: 0, userId: 0 } },
-        )
-        .sort({ createdAt: -1 })
-        .limit(12)
-        .toArray(),
-      manual
-        .find(
-          { userId },
-          { projection: { _id: 0, userId: 0, manuallyAddedAt: 0 } },
-        )
-        .limit(20)
-        .toArray(),
-    ]);
+    const [rows, unverifiedRows, saved, recent, shared, manualRows] =
+      await Promise.all([
+        discoveries
+          .find(
+            { userId, deadline: { $gte: today } },
+            { projection: { _id: 0, userId: 0 } },
+          )
+          .sort({ deadline: 1 })
+          .limit(30)
+          .toArray(),
+        discoveries
+          .find({ userId, deadline: "" }, { projection: { _id: 0, userId: 0 } })
+          .sort({ discoveredAt: -1 })
+          .limit(20)
+          .toArray(),
+        briefs.findOne({ userId }, { projection: { _id: 0, userId: 0 } }),
+        messages
+          .find({ userId }, { projection: { _id: 0, userId: 0 } })
+          .sort({ createdAt: -1 })
+          .limit(12)
+          .toArray(),
+        leads
+          .find(
+            { userId, archived: false },
+            { projection: { _id: 0, userId: 0 } },
+          )
+          .sort({ createdAt: -1 })
+          .limit(12)
+          .toArray(),
+        manual
+          .find(
+            { userId },
+            { projection: { _id: 0, userId: 0, manuallyAddedAt: 0 } },
+          )
+          .limit(20)
+          .toArray(),
+      ]);
     const curated = curatedForUser(
       (saved?.preferences || emptyAgentPreferences) as AgentPreferences,
       recent as unknown as AgentMessage[],
@@ -639,6 +647,7 @@ export async function handleAgent(
       ...currentManual,
       ...curated,
       ...rows,
+      ...unverifiedRows,
     ]).sort((left, right) =>
       (
         left.deadline ||
@@ -879,7 +888,10 @@ export async function handleAgent(
             deadline: item.deadline,
             sourceUrl: url,
           };
-          if (known.some((existing) => sameOpportunity(existing, candidate))) {
+          const existing = known.find((entry) =>
+            sameOpportunity(entry, candidate),
+          );
+          if (existing?.deadline) {
             alreadyListed++;
             continue;
           }
@@ -903,10 +915,41 @@ export async function handleAgent(
           known.push(candidate);
           added++;
         }
+        let leadsAdded = 0;
+        if (added < 4) {
+          const sourceLeads = hackathonLeadsFromSources(
+            result.sources,
+            message,
+            known,
+            today,
+          ).slice(0, 4 - added);
+          for (const lead of sourceLeads) {
+            await discoveries.updateOne(
+              { userId, sourceUrl: lead.sourceUrl },
+              {
+                $set: {
+                  userId,
+                  ...lead,
+                  description:
+                    "Found on an official event page during your search. Open the page to check its current deadline, format, and eligibility.",
+                  deadline: "",
+                  reason:
+                    "A possible match for your request; details have not been verified yet.",
+                  discoveredAt: new Date().toISOString(),
+                  status: "Search lead; deadline and eligibility unverified",
+                },
+              },
+              { upsert: true },
+            );
+            known.push({ ...lead, deadline: "" });
+            leadsAdded++;
+          }
+        }
         console.info("Opportunity discovery validation", {
           candidates: items.length,
           sources: result.sources.length,
           added,
+          leadsAdded,
           alreadyListed,
           skipped,
         });
@@ -914,17 +957,19 @@ export async function handleAgent(
           id: randomUUID(),
           role: "assistant",
           content: added
-            ? `I added ${added} opportunity${added === 1 ? "" : "ies"} matching your request to your Discover dashboard. Please check each official page before applying.`
-            : alreadyListed
-              ? "I found an opportunity matching your request, but it is already on your Discover dashboard. Please check the official page before applying."
-              : curated.length
-                ? `I couldn't verify any new cards in this search. There are ${curated.length} current, official-source opportunities on your Discover dashboard. Please check each event's page and eligibility before applying.`
-                : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
+            ? `I added ${added} deadline-checked opportunity${added === 1 ? "" : "ies"}${leadsAdded ? ` and ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} that need date and eligibility checks` : ""} to your Discover dashboard. Please check each official page before applying.`
+            : leadsAdded
+              ? `I added ${leadsAdded} event link${leadsAdded === 1 ? "" : "s"} to your Discover dashboard. Their deadlines and eligibility are not verified yet, so open the official pages before applying.`
+              : alreadyListed
+                ? "I found an opportunity matching your request, but it is already on your Discover dashboard. Please check the official page before applying."
+                : curated.length
+                  ? `I couldn't verify any new cards in this search. There are ${curated.length} current, official-source opportunities on your Discover dashboard. Please check each event's page and eligibility before applying.`
+                  : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
           createdAt: new Date().toISOString(),
           sources: [],
         };
         await messages.insertOne({ ...reply, userId });
-        return json({ sent, reply, added });
+        return json({ sent, reply, added, leadsAdded });
       }
       const reply: AgentMessage = {
         id: randomUUID(),

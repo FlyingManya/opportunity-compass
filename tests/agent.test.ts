@@ -21,6 +21,7 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
+import { hackathonLeadsFromSources } from "../src/lib/source-leads";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -151,6 +152,50 @@ test("one event with two official pages appears once, while a different edition 
     false,
   );
 });
+test("hackathon search citations become distinct source leads without inventing deadlines", () => {
+  const leads = hackathonLeadsFromSources(
+    [
+      {
+        title: "PayPal AI Hackathon - Devpost",
+        url: "https://paypalaihackathon.devpost.com/rules",
+      },
+      {
+        title: "New AI Hackathon 2026 - Devpost",
+        url: "https://new-ai-2026.devpost.com/",
+      },
+      {
+        title: "New AI Hackathon 2026 - Devpost",
+        url: "https://new-ai-2026.devpost.com/rules",
+      },
+      {
+        title: "Old AI Hackathon 2025 - Devpost",
+        url: "https://old-ai-2025.devpost.com/",
+      },
+      {
+        title: "AI hackathon directory",
+        url: "https://devpost.com/c/artificial-intelligence",
+      },
+    ],
+    "Find AI hackathons I can join remotely",
+    [
+      {
+        title: "PayPal AI Hackathon",
+        organizer: "PayPal",
+        deadline: "2026-11-12",
+        sourceUrl: "https://paypalaihackathon.devpost.com/",
+      },
+    ],
+    "2026-11-03",
+  );
+  assert.deepEqual(leads, [
+    {
+      title: "New AI Hackathon 2026",
+      organizer: "Devpost event",
+      sourceUrl: "https://new-ai-2026.devpost.com/",
+    },
+  ]);
+});
+
 test("incoming phone share preserves a caption and extracts its link", () => {
   const draft = sharedDraft({
     text: "Medical conference https://www.linkedin.com/posts/example/",
@@ -1267,7 +1312,7 @@ test("discovery saves only cited opportunities with future deadlines for the cur
     );
     const body = await response.json();
     assert.equal(body.added, 1);
-    assert.match(body.reply.content, /added 1 opportunity/);
+    assert.match(body.reply.content, /added 1 deadline-checked opportunity/);
     const rows = await db
       .collection("discovered_opportunities")
       .find({ userId: "alice" })
@@ -1311,6 +1356,83 @@ test("discovery saves only cited opportunities with future deadlines for the cur
           .toArray()
       ).length,
       0,
+    );
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.CLAUDE_API_KEY;
+    else process.env.CLAUDE_API_KEY = previous;
+  }
+});
+
+test("search links reach the dashboard even when the model cannot verify a deadline", async () => {
+  const previous = process.env.CLAUDE_API_KEY;
+  const original = globalThis.fetch;
+  process.env.CLAUDE_API_KEY = "test-only";
+  const eventUrl = "https://new-ai-2026.devpost.com/";
+  globalThis.fetch = (async () =>
+    Response.json({
+      content: [
+        {
+          type: "text",
+          text: '{"opportunities":[]}',
+          citations: [
+            {
+              type: "web_search_result_location",
+              title: "New AI Hackathon 2026 - Devpost",
+              url: eventUrl,
+            },
+          ],
+        },
+      ],
+    })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: "Find remote AI hackathons" }),
+    );
+    const body = await response.json();
+    assert.equal(body.added, 0);
+    assert.equal(body.leadsAdded, 1);
+    assert.match(
+      body.reply.content,
+      /deadlines and eligibility are not verified/,
+    );
+    const dashboard = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/discoveries",
+      "GET",
+      async () => undefined,
+    );
+    const cards = (await dashboard.json()).opportunities;
+    const lead = cards.find(
+      (item: { sourceUrl: string }) => item.sourceUrl === eventUrl,
+    );
+    assert.equal(lead.title, "New AI Hackathon 2026");
+    assert.equal(lead.deadline, "");
+    assert.match(lead.status, /unverified/);
+    assert.equal(
+      (
+        await (
+          await handleAgent(
+            db,
+            "bob",
+            emptyProfile,
+            "agent/discoveries",
+            "GET",
+            async () => undefined,
+          )
+        ).json()
+      ).opportunities.some(
+        (item: { sourceUrl: string }) => item.sourceUrl === eventUrl,
+      ),
+      false,
     );
   } finally {
     globalThis.fetch = original;
