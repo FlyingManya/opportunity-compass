@@ -13,7 +13,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Discovery = {
   sourceUrl: string;
@@ -189,6 +189,8 @@ export default function DiscoveryFeed({
   const [progress, setProgress] = useState(0);
   const [targetTotal, setTargetTotal] = useState(0);
   const [statusIndex, setStatusIndex] = useState<number | null>(null);
+  const seenStatusSignal = useRef(openStatusSignal);
+  const pendingStatusOpen = useRef(false);
   const [statusError, setStatusError] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
   const [selected, setSelected] = useState<Discovery | null>(null);
@@ -483,10 +485,14 @@ export default function DiscoveryFeed({
   const currentStatus = statusIndex === null ? null : statuses[statusIndex];
   const currentIndex = statusIndex ?? 0;
   useEffect(() => {
-    if (!openStatusSignal) return;
+    if (openStatusSignal !== seenStatusSignal.current) {
+      seenStatusSignal.current = openStatusSignal;
+      pendingStatusOpen.current = true;
+    }
+    if (!pendingStatusOpen.current || loading) return;
+    pendingStatusOpen.current = false;
     if (statuses.length) setStatusIndex(0);
-    else if (!loading)
-      setStatusError("Find an opportunity to start your stories.");
+    else setStatusError("Find an opportunity to start your stories.");
   }, [openStatusSignal, statuses.length, loading]);
   useEffect(() => {
     if (statusIndex === null) return;
