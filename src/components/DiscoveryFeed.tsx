@@ -56,6 +56,39 @@ function formatDeadline(deadline: string) {
   }).format(new Date(`${deadline}T12:00:00Z`));
 }
 
+function DetailText({ text }: { text: string }) {
+  const inline = (value: string) =>
+    value
+      .split(/(\*\*[^*]+\*\*)/g)
+      .map((part, index) =>
+        part.startsWith("**") && part.endsWith("**") ? (
+          <strong key={index}>{part.slice(2, -2)}</strong>
+        ) : (
+          part
+        ),
+      );
+  return (
+    <div className="discovery-detail-copy">
+      {text.split(/\r?\n/).map((line, index) => {
+        const value = line.trim();
+        if (!value) return null;
+        if (/^#{1,3}\s/.test(value))
+          return <h3 key={index}>{inline(value.replace(/^#{1,3}\s+/, ""))}</h3>;
+        if (/^\*\*[^*]+\*\*$/.test(value))
+          return <h4 key={index}>{value.slice(2, -2)}</h4>;
+        if (/^[-*]\s/.test(value))
+          return (
+            <p className="discovery-detail-bullet" key={index}>
+              <span aria-hidden="true">•</span>
+              {inline(value.slice(2))}
+            </p>
+          );
+        return <p key={index}>{inline(value)}</p>;
+      })}
+    </div>
+  );
+}
+
 function OpportunityCardArt({
   item,
   color,
@@ -612,9 +645,7 @@ export default function DiscoveryFeed({
                         : "General preparation template. Page details were not verified."}
                   </p>
                 )}
-                {detail && (
-                  <div className="discovery-detail-copy">{detail}</div>
-                )}
+                {detail && <DetailText text={detail} />}
                 {!detailBusy && !detail && (
                   <p>
                     Open the source page to confirm eligibility, application

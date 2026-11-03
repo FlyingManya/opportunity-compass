@@ -871,9 +871,27 @@
   line-height: 1.5;
 }
 .discovery-detail-copy {
-  white-space: pre-wrap;
   line-height: 1.65;
   margin: 15px 0;
+}
+.discovery-detail-copy h3 {
+  margin: 20px 0 9px;
+}
+.discovery-detail-copy h4 {
+  margin: 15px 0 8px;
+  color: #51405e;
+}
+.discovery-detail-copy p {
+  margin: 7px 0;
+}
+.discovery-detail-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.discovery-detail-bullet span {
+  color: #8768b2;
+  font-weight: 800;
 }
 .discovery-detail-provider {
   color: #7859a0;
