@@ -927,11 +927,15 @@ export async function handleAgent(
         name: error instanceof Error ? error.name : "unknown",
         code: error instanceof Error ? error.message : "unknown",
       });
+      const timedOut =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError");
       return json({
         sent,
         reply: null,
-        notice:
-          "Your message is saved, but the AI service couldn’t reply. Please try again later; check the model connection or credit balance.",
+        notice: timedOut
+          ? "The search took too long. Your message was saved; you can try again."
+          : "Your message was saved, but the AI service couldn’t reply. Please try again.",
       });
     }
   }

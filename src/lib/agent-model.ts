@@ -322,84 +322,113 @@ export async function askAgent(
         .map((entry) => `${entry.role}: ${entry.content}`)
         .join("\n")}`
     : metaInput;
-  const response = await fetch(
-    config.base +
-      (config.provider === "meta"
-        ? "/responses"
-        : config.provider === "claude"
-          ? "/messages"
-          : "/chat/completions"),
-    {
-      method: "POST",
-      headers:
-        config.provider === "claude"
-          ? {
-              "x-api-key": config.key,
-              "anthropic-version":
-                process.env.CLAUDE_API_VERSION || "2023-06-01",
-              "Content-Type": "application/json",
-            }
-          : {
-              Authorization: `Bearer ${config.key}`,
-              "Content-Type": "application/json",
-            },
-      body: JSON.stringify(
-        config.provider === "claude"
-          ? {
-              model: config.model,
-              max_tokens: 2048,
-              system: instructions,
-              messages,
-              tools: [
-                {
-                  type: "web_search_20250305",
-                  name: "web_search",
-                  max_uses: 2,
-                },
-              ],
-            }
-          : config.provider === "meta"
-            ? simpleMetaDiscovery
-              ? {
-                  model:
-                    metaModelOverride ||
-                    process.env.META_DISCOVERY_MODEL ||
-                    config.model,
-                  input: discoveryInput,
-                  tools: [{ type: "web_search" }],
-                  store: false,
-                }
-              : {
-                  model: discover
-                    ? metaModelOverride ||
-                      process.env.META_DISCOVERY_MODEL ||
-                      config.model
-                    : config.model,
-                  instructions,
-                  input: metaInput,
-                  tools: [
-                    {
-                      type: "web_search",
-                      search_context_size: discover ? "high" : "medium",
-                    },
-                  ],
-                  ...(discover ? { include: ["web_search_call.results"] } : {}),
-                  reasoning: { effort: discover ? "medium" : "low" },
-                  max_output_tokens: 3000,
-                  store: false,
-                }
+  let response: Response;
+  try {
+    response = await fetch(
+      config.base +
+        (config.provider === "meta"
+          ? "/responses"
+          : config.provider === "claude"
+            ? "/messages"
+            : "/chat/completions"),
+      {
+        method: "POST",
+        headers:
+          config.provider === "claude"
+            ? {
+                "x-api-key": config.key,
+                "anthropic-version":
+                  process.env.CLAUDE_API_VERSION || "2023-06-01",
+                "Content-Type": "application/json",
+              }
             : {
-                model: config.model,
-                messages: [
-                  { role: "system", content: instructions },
-                  ...messages,
-                ],
-                max_tokens: 1800,
+                Authorization: `Bearer ${config.key}`,
+                "Content-Type": "application/json",
               },
-      ),
-      signal: AbortSignal.timeout(35000),
-    },
-  );
+        body: JSON.stringify(
+          config.provider === "claude"
+            ? {
+                model: config.model,
+                max_tokens: 2048,
+                system: instructions,
+                messages,
+                tools: [
+                  {
+                    type: "web_search_20250305",
+                    name: "web_search",
+                    max_uses: 2,
+                  },
+                ],
+              }
+            : config.provider === "meta"
+              ? simpleMetaDiscovery
+                ? {
+                    model:
+                      metaModelOverride ||
+                      process.env.META_DISCOVERY_MODEL ||
+                      config.model,
+                    input: discoveryInput,
+                    tools: [{ type: "web_search" }],
+                    store: false,
+                  }
+                : {
+                    model: discover
+                      ? metaModelOverride ||
+                        process.env.META_DISCOVERY_MODEL ||
+                        config.model
+                      : config.model,
+                    instructions,
+                    input: metaInput,
+                    tools: [
+                      {
+                        type: "web_search",
+                        search_context_size: discover ? "high" : "medium",
+                      },
+                    ],
+                    ...(discover
+                      ? { include: ["web_search_call.results"] }
+                      : {}),
+                    reasoning: { effort: discover ? "medium" : "low" },
+                    max_output_tokens: 3000,
+                    store: false,
+                  }
+              : {
+                  model: config.model,
+                  messages: [
+                    { role: "system", content: instructions },
+                    ...messages,
+                  ],
+                  max_tokens: 1800,
+                },
+        ),
+        signal: AbortSignal.timeout(
+          config.provider === "meta" && discover ? 25000 : 35000,
+        ),
+      },
+    );
+  } catch (error) {
+    if (
+      config.provider === "meta" &&
+      discover &&
+      !metaModelOverride &&
+      !!process.env.META_DISCOVERY_MODEL &&
+      config.model !== process.env.META_DISCOVERY_MODEL &&
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError")
+    ) {
+      console.warn("Muse Wonder search timed out; trying Muse Spark");
+      return askAgent(
+        preferences,
+        profile,
+        leads,
+        history,
+        resume,
+        discover,
+        config.model,
+      );
+    }
+    throw error;
+  }
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     const error = errorBody?.error;

@@ -37,7 +37,7 @@ async function request(path: string, method = "GET", data?: unknown) {
     method,
     headers: data ? { "Content-Type": "application/json" } : undefined,
     body: data ? JSON.stringify(data) : undefined,
-    signal: AbortSignal.timeout(50000),
+    signal: AbortSignal.timeout(path === "chat" ? 65000 : 50000),
     cache: "no-store",
   });
   const result = await response.json();
@@ -191,7 +191,7 @@ export default function AgentPanel({
         result.sent,
         ...(result.reply ? [result.reply] : []),
       ]);
-      setMessage("");
+      if (result.reply) setMessage("");
       setNotice(result.notice || "");
     } catch (cause) {
       setError((cause as Error).message);
@@ -516,7 +516,11 @@ export default function AgentPanel({
                       ) : (
                         <Send size={17} />
                       )}
-                      {mode.connected ? "Send" : "Save note"}
+                      {busy
+                        ? "Searching…"
+                        : mode.connected
+                          ? "Send"
+                          : "Save note"}
                     </button>
                   </div>
                 </form>

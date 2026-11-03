@@ -1025,6 +1025,63 @@ test("Meta discovery tries Spark once if Wonder is unavailable", async () => {
   }
 });
 
+test("Meta discovery tries Spark when Wonder web search times out", async () => {
+  const previous = {
+    provider: process.env.AGENT_PROVIDER,
+    key: process.env.MODEL_API_KEY,
+    model: process.env.META_DISCOVERY_MODEL,
+  };
+  const original = globalThis.fetch;
+  process.env.AGENT_PROVIDER = "meta";
+  process.env.MODEL_API_KEY = "test-only";
+  process.env.META_DISCOVERY_MODEL = "muse-wonder-1.0";
+  const models: string[] = [];
+  globalThis.fetch = (async (_url, options) => {
+    const model = JSON.parse(String(options?.body)).model;
+    models.push(model);
+    if (model === "muse-wonder-1.0")
+      throw new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      );
+    return Response.json({
+      output: [
+        {
+          type: "message",
+          content: [{ type: "output_text", text: '{"opportunities":[]}' }],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const result = await askAgent(
+      emptyAgentPreferences,
+      emptyProfile,
+      [],
+      [
+        {
+          id: "search",
+          role: "user",
+          content: "Find a remote AI hackathon",
+          createdAt: "2026-11-03T00:00:00Z",
+        },
+      ],
+      null,
+      true,
+    );
+    assert.equal(result?.content, '{"opportunities":[]}');
+    assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
+  } finally {
+    globalThis.fetch = original;
+    if (previous.provider === undefined) delete process.env.AGENT_PROVIDER;
+    else process.env.AGENT_PROVIDER = previous.provider;
+    if (previous.key === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = previous.key;
+    if (previous.model === undefined) delete process.env.META_DISCOVERY_MODEL;
+    else process.env.META_DISCOVERY_MODEL = previous.model;
+  }
+});
+
 test("discovery saves only cited opportunities with future deadlines for the current account", async () => {
   assert.equal(isDiscoveryRequest("Find women in tech fellowships"), true);
   assert.equal(isDiscoveryRequest("Hello"), false);
