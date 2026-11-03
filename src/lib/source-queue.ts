@@ -20,7 +20,9 @@ export function sourceQueue(
   limit = 20,
   today = new Date().toISOString().slice(0, 10),
 ) {
-  const requestWords = words(request);
+  const topicWords = words(request.split(/\bfor\b/i)[0]);
+  const requestWords = topicWords.length ? topicWords : words(request);
+  const contextWords = words(request);
   const profileWords = words(profileKeywords.join(" "));
   const knownUrls = new Set(known.map((item) => publicLink(item.sourceUrl)).filter(Boolean));
   const seen = new Set<string>();
@@ -40,12 +42,13 @@ export function sourceQueue(
       const text = `${title} ${new URL(sourceUrl).pathname}`.toLowerCase();
       const requestHits = requestWords.filter((word) => text.includes(word)).length;
       if (requestWords.length && !requestHits) return null;
+      const contextHits = contextWords.filter((word) => text.includes(word)).length;
       const profileHits = profileWords.filter((word) => text.includes(word)).length;
       return {
         title,
         sourceUrl,
         organizer: new URL(sourceUrl).hostname.replace(/^www\./, ""),
-        score: requestHits * 10 + profileHits,
+        score: requestHits * 10 + contextHits * 2 + profileHits,
       };
     })
     .filter((item) => item !== null)

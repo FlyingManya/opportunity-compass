@@ -19,7 +19,6 @@ import {
 } from "./shared-links";
 import { agentMode, askAgent, explainOpportunityWithMuse, extractProfileKeywordsWithMeta, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
-import { curatedForUser } from "./curated-opportunities";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
 import { sourceQueue } from "./source-queue";
@@ -76,26 +75,7 @@ async function statusOpportunity(
     .findOne({ userId, sourceUrl });
   if (manual && (manual.deadline || manual.eventDate || "9999-12-31") >= today)
     return manual;
-  const [settings, recent, shared] = await Promise.all([
-    db.collection("agent_preferences").findOne({ userId }),
-    db
-      .collection("agent_messages")
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(12)
-      .toArray(),
-    db
-      .collection("shared_leads")
-      .find({ userId, archived: false })
-      .limit(12)
-      .toArray(),
-  ]);
-  return curatedForUser(
-    (settings?.preferences || emptyAgentPreferences) as AgentPreferences,
-    recent as unknown as AgentMessage[],
-    shared as unknown as SharedLead[],
-    today,
-  ).find((item) => item.sourceUrl === sourceUrl);
+  return null;
 }
 
 async function generateStatusImage(prompt: string) {

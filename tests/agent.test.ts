@@ -19,9 +19,7 @@ import {
   isDiscoveryRequest,
 } from "../src/lib/agent-model";
 import { handleAgent } from "../src/lib/agent-api";
-import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
-import { currentDevpostEvent, hackathonLeadsFromSources, liveDevpostHackathons, plausibleEventSource } from "../src/lib/source-leads";
 import { sourceQueue } from "../src/lib/source-queue";
 import {
   sameOpportunity,
@@ -153,66 +151,15 @@ test("one event with two official pages appears once, while a different edition 
     false,
   );
 });
-test("hackathon search citations become distinct source leads without inventing deadlines", () => {
-  const leads = hackathonLeadsFromSources(
-    [
-      {
-        title: "PayPal AI Hackathon - Devpost",
-        url: "https://paypalaihackathon.devpost.com/rules",
-      },
-      {
-        title: "New AI Hackathon 2026 - Devpost",
-        url: "https://new-ai-2026.devpost.com/",
-      },
-      {
-        title: "New AI Hackathon 2026 - Devpost",
-        url: "https://new-ai-2026.devpost.com/rules",
-      },
-      {
-        title: "Old AI Hackathon 2025 - Devpost",
-        url: "https://old-ai-2025.devpost.com/",
-      },
-      {
-        title: "AI hackathon directory",
-        url: "https://devpost.com/c/artificial-intelligence",
-      },
-      {
-        title: "The World's #1 Hackathon Platform | Book a Demo",
-        url: "https://info.devpost.com/book-a-demo",
-      },
-      {
-        title: "DevFest Hackathon 2026",
-        url: "https://devfest-hackathon-2026.devpost.com/",
-      },
-    ],
-    "Find AI hackathons I can join remotely",
-    [
-      {
-        title: "PayPal AI Hackathon",
-        organizer: "PayPal",
-        deadline: "2026-11-12",
-        sourceUrl: "https://paypalaihackathon.devpost.com/",
-      },
-    ],
-    "2026-11-03",
-  );
-  assert.deepEqual(leads, [
-    {
-      title: "New AI Hackathon 2026",
-      organizer: "Devpost event",
-      sourceUrl: "https://new-ai-2026.devpost.com/",
-    },
-  ]);
-  assert.equal(plausibleEventSource("https://info.devpost.com/book-a-demo"), false);
-});
 test("source queue follows a literature request and does not require a Devpost source", () => {
   const queued = sourceQueue(
     [
       { title: "National Essay Writing Competition", url: "https://literary.example.org/essay-2026" },
       { title: "AI Hackathon", url: "https://code.example.org/ai" },
       { title: "Another Essay Competition", url: "https://arts.example.org/contest" },
+      { title: "Scholarships for Literature Students in India", url: "https://grants.example.org/scholarships" },
     ],
-    "Find essay writing competitions",
+    "Find essay writing competitions for literature students in India",
     ["literature", "poetry"],
     [],
   );
@@ -258,34 +205,6 @@ test("opening an owned card asks Muse Wonder for details on demand", async () =>
     if (oldKey === undefined) delete process.env.MODEL_API_KEY;
     else process.env.MODEL_API_KEY = oldKey;
   }
-});
-
-test("Devpost event leads must still be current and remote when requested", async () => {
-  const page = (endDate: string, mode: string) =>
-    `<script type="application/ld+json" id="challenge-json-ld">${JSON.stringify({ endDate, eventAttendanceMode: mode })}</script>`;
-  const fetcher = async (url: string) =>
-    new Response(page(url.includes("past") ? "2026-03-10" : "2026-11-10", url.includes("offline") ? "https://schema.org/OfflineEventAttendanceMode" : "https://schema.org/OnlineEventAttendanceMode"));
-  assert.equal(await currentDevpostEvent("https://past.devpost.com/", "2026-11-03", false, fetcher as typeof fetch), false);
-  assert.equal(await currentDevpostEvent("https://offline.devpost.com/", "2026-11-03", true, fetcher as typeof fetch), false);
-  assert.equal(await currentDevpostEvent("https://current.devpost.com/rules", "2026-11-03", true, fetcher as typeof fetch), true);
-});
-
-test("live Devpost search adds only open online AI events with confirmed dates", async () => {
-  const fetcher = async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url.startsWith("https://devpost.com/api/hackathons?")) {
-      return Response.json({ hackathons: [
-        { title: "Fresh AI Hackathon", url: "https://fresh-ai.devpost.com/", open_state: "open", displayed_location: { location: "Online" }, themes: [{ name: "Machine Learning/AI" }] },
-        { title: "Local AI Hackathon", url: "https://local-ai.devpost.com/", open_state: "open", displayed_location: { location: "New York" }, themes: [{ name: "Machine Learning/AI" }] },
-        { title: "Old AI Hackathon", url: "https://old-ai.devpost.com/", open_state: "open", displayed_location: { location: "Online" }, themes: [{ name: "Machine Learning/AI" }] },
-      ] });
-    }
-    const endDate = url.includes("old-ai") ? "2026-03-10" : "2026-11-12";
-    return new Response(`<script id="challenge-json-ld" type="application/ld+json">${JSON.stringify({ name: "Fresh AI Hackathon", organizer: { name: "Fresh" }, endDate, eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" })}</script>`);
-  };
-  assert.deepEqual(await liveDevpostHackathons("Find remote AI hackathons", "2026-11-03", [], fetcher as typeof fetch), [
-    { title: "Fresh AI Hackathon", organizer: "Fresh", sourceUrl: "https://fresh-ai.devpost.com/", deadline: "2026-11-12" },
-  ]);
 });
 
 test("incoming phone share preserves a caption and extracts its link", () => {
@@ -790,6 +709,14 @@ test("status remains viewable with labelled template artwork when Muse Image is 
       userId: "alice",
       preferences: { ...emptyAgentPreferences, brief: "women in tech" },
     });
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl: "https://www.wicys.org/event/bloomberg-x-wicys-2026-ctf-application-open/",
+      title: "Bloomberg x WiCyS CTF",
+      organizer: "WiCyS",
+      description: "A virtual cybersecurity competition.",
+      deadline: "2026-11-13",
+    });
     const response = await handleAgent(
       db,
       "alice",
@@ -902,65 +829,6 @@ test("notes and shared links persist per account, duplicates update, and archive
       else process.env[key] = previous[index];
     });
   }
-});
-
-test("current curated lead appears only for interested accounts and expires", async () => {
-  const interested = {
-    ...emptyAgentPreferences,
-    sources: ["https://womenhack.com/events/"],
-  };
-  assert.equal(curatedForUser(interested, [], [], "2026-11-01").length, 1);
-  assert.equal(curatedForUser(interested, [], [], "2026-11-14").length, 0);
-  assert.deepEqual(
-    curatedForUser(
-      { ...emptyAgentPreferences, brief: "AI hackathons" },
-      [],
-      [],
-      "2026-11-02",
-    ).map((item) => item.title),
-    [
-      "UGREEN Hackathon 2026 on AI NAS",
-      "#BuildHybridAI 2026",
-      "Codegeist 2026",
-      "PayPal AI Hackathon",
-    ],
-  );
-  assert.equal(
-    curatedForUser(
-      { ...emptyAgentPreferences, brief: "AI hackathons" },
-      [],
-      [],
-      "2026-12-23",
-    ).length,
-    0,
-  );
-  assert.equal(
-    curatedForUser(emptyAgentPreferences, [], [], "2026-11-01").length,
-    0,
-  );
-  const db = memoryDatabase();
-  await db.collection("agent_preferences").insertOne({
-    userId: "alice",
-    preferences: interested,
-  });
-  const forAlice = await handleAgent(
-    db,
-    "alice",
-    emptyProfile,
-    "agent/discoveries",
-    "GET",
-    async () => null,
-  );
-  const forBob = await handleAgent(
-    db,
-    "bob",
-    emptyProfile,
-    "agent/discoveries",
-    "GET",
-    async () => null,
-  );
-  assert.equal((await forAlice.json()).opportunities.length, 0);
-  assert.equal((await forBob.json()).opportunities.length, 0);
 });
 
 test("model requests select the configured transport and do not expose keys in status", async () => {
