@@ -623,12 +623,6 @@ export default function DiscoveryFeed({
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
-      {!!items.length && (
-        <p>
-          View stories includes all {items.length} dashboard opportunities.
-          Update status creates artwork for up to four at a time.
-        </p>
-      )}
       {statusError && (
         <p className="status-error" role="alert">
           {statusError}
