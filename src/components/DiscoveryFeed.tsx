@@ -27,6 +27,10 @@ type Discovery = {
 
 function cardAppearance(item: Discovery) {
   const topic = `${item.title} ${item.description}`.toLowerCase();
+  if (item.provenance === "demo" && /womenhack/.test(topic))
+    return { kind: "Networking event", color: "peach", art: 2 };
+  if (item.provenance === "demo" && /amazon women of the world/.test(topic))
+    return { kind: "Career program", color: "mint", art: 0 };
   if (
     /hackathon|codefest|capture the flag|\bctf\b|coding competition/.test(topic)
   )
