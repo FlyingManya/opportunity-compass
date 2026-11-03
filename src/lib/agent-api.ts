@@ -20,6 +20,7 @@ import {
 import { agentMode, askAgent, isDiscoveryRequest } from "./agent-model";
 import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
+import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
@@ -68,6 +69,11 @@ async function statusOpportunity(
     deadline: { $gte: today },
   });
   if (found) return found;
+  const manual = await db
+    .collection<DemoOpportunity & { userId: string }>("manual_opportunities")
+    .findOne({ userId, sourceUrl });
+  if (manual && (manual.deadline || manual.eventDate || "9999-12-31") >= today)
+    return manual;
   const [settings, recent, shared] = await Promise.all([
     db.collection("agent_preferences").findOne({ userId }),
     db
@@ -232,6 +238,44 @@ export async function handleAgent(
   );
   const statusImages = db.collection("opportunity_status_images");
   const cardImages = db.collection("opportunity_card_images");
+  const manual = db.collection<DemoOpportunity & { userId: string }>(
+    "manual_opportunities",
+  );
+  if (path === "agent/demo-seed" && method === "POST") {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: profile.timezone || "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const current = demoOpportunities.filter(
+      (item) => (item.deadline || item.eventDate || "9999-12-31") >= today,
+    );
+    await Promise.all(
+      current.map(async (item) => {
+        await manual.updateOne(
+          { userId, sourceUrl: item.sourceUrl },
+          { $set: { ...item, userId, manuallyAddedAt: new Date() } },
+          { upsert: true },
+        );
+        await statusImages.updateOne(
+          { userId, id: statusId(item.sourceUrl) },
+          {
+            $setOnInsert: {
+              userId,
+              id: statusId(item.sourceUrl),
+              sourceUrl: item.sourceUrl,
+              data: null,
+              fallback: true,
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true },
+        );
+      }),
+    );
+    return json({ added: current.length });
+  }
   if (path.startsWith("agent/card-image/") && method === "GET") {
     const id = path.slice("agent/card-image/".length);
     if (!/^[a-f0-9]{64}$/.test(id))
@@ -262,6 +306,8 @@ export async function handleAgent(
     );
     if (!opportunity)
       return json({ error: "Opportunity not found on your dashboard." }, 404);
+    if (opportunity.provenance === "demo")
+      return json({ imageUrl: null, unavailable: true });
     const id = statusId(body.sourceUrl);
     const existing = await cardImages.findOne({ userId, id });
     if (existing?.data)
@@ -335,6 +381,11 @@ export async function handleAgent(
       return json(
         { error: "This opportunity is no longer available on your dashboard." },
         404,
+      );
+    if (!opportunity.deadline)
+      return json(
+        { error: "This item has no published application deadline." },
+        400,
       );
     const item: ResearchedSaved = {
       id: statusId(sourceUrl),
@@ -544,7 +595,7 @@ export async function handleAgent(
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
-    const [rows, saved, recent, shared] = await Promise.all([
+    const [rows, saved, recent, shared, manualRows] = await Promise.all([
       discoveries
         .find(
           { userId, deadline: { $gte: today } },
@@ -567,6 +618,13 @@ export async function handleAgent(
         .sort({ createdAt: -1 })
         .limit(12)
         .toArray(),
+      manual
+        .find(
+          { userId },
+          { projection: { _id: 0, userId: 0, manuallyAddedAt: 0 } },
+        )
+        .limit(20)
+        .toArray(),
     ]);
     const curated = curatedForUser(
       (saved?.preferences || emptyAgentPreferences) as AgentPreferences,
@@ -574,8 +632,23 @@ export async function handleAgent(
       shared as unknown as SharedLead[],
       today,
     );
-    const opportunities = uniqueOpportunities([...curated, ...rows]).sort(
-      (left, right) => left.deadline.localeCompare(right.deadline),
+    const currentManual = manualRows.filter(
+      (item) => (item.deadline || item.eventDate || "9999-12-31") >= today,
+    );
+    const opportunities = uniqueOpportunities([
+      ...currentManual,
+      ...curated,
+      ...rows,
+    ]).sort((left, right) =>
+      (
+        left.deadline ||
+        ("eventDate" in left ? String(left.eventDate) : "") ||
+        "9999-12-31"
+      ).localeCompare(
+        right.deadline ||
+          ("eventDate" in right ? String(right.eventDate) : "") ||
+          "9999-12-31",
+      ),
     );
     const images = await statusImages
       .find(

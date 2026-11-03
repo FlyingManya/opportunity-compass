@@ -316,7 +316,9 @@ function memoryDatabase() {
     Object.entries(query).every(([key, value]) =>
       value && typeof value === "object" && "$gte" in value
         ? record[key] >= (value as { $gte: string }).$gte
-        : record[key] === value,
+        : value && typeof value === "object" && "$in" in value
+          ? (value as { $in: unknown[] }).$in.includes(record[key])
+          : record[key] === value,
     );
   return {
     collection(name: string) {
@@ -362,11 +364,15 @@ function memoryDatabase() {
         async updateOne(query: any, update: any, options?: any) {
           const found = rows.find((row) => same(row, query));
           if (found) {
-            Object.assign(found, structuredClone(update.$set));
+            Object.assign(found, structuredClone(update.$set || {}));
             return { matchedCount: 1 };
           }
           if (options?.upsert)
-            rows.push({ ...query, ...structuredClone(update.$set) });
+            rows.push({
+              ...query,
+              ...structuredClone(update.$setOnInsert || {}),
+              ...structuredClone(update.$set || {}),
+            });
           return { matchedCount: 0 };
         },
         async findOneAndUpdate(query: any, update: any) {
@@ -382,6 +388,40 @@ function memoryDatabase() {
     },
   } as unknown as Db;
 }
+test("manual demo cards stay in the signed-in account and do not invent deadlines", async () => {
+  const db = memoryDatabase();
+  const call = (userId: string, path: string, method: string) =>
+    handleAgent(db, userId, emptyProfile, path, method, async () => null);
+  const seeded = await (await call("alice", "agent/demo-seed", "POST")).json();
+  assert.equal(seeded.added, 4);
+  const alice = await (await call("alice", "agent/discoveries", "GET")).json();
+  const bob = await (await call("bob", "agent/discoveries", "GET")).json();
+  assert.equal(alice.opportunities.length, 4);
+  assert.equal(bob.opportunities.length, 0);
+  const amazon = alice.opportunities.find((item: any) =>
+    item.title.includes("Amazon"),
+  );
+  assert.equal(amazon.deadline, "");
+  assert.equal(amazon.statusReady, true);
+  const interested = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/interested",
+    "POST",
+    async () => ({ sourceUrl: amazon.sourceUrl }),
+  );
+  assert.equal(interested.status, 400);
+  assert.equal(
+    (await (await call("alice", "agent/demo-seed", "POST")).json()).added,
+    4,
+  );
+  assert.equal(
+    (await (await call("alice", "agent/discoveries", "GET")).json())
+      .opportunities.length,
+    4,
+  );
+});
 test("researched opportunities save per account and can be removed", async () => {
   const db = memoryDatabase();
   const sourceUrl = "https://official.example.org/ai-event";

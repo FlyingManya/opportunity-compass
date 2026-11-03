@@ -18,7 +18,8 @@ type Discovery = {
   description: string;
   deadline: string;
   reason: string;
-  provenance?: "curated";
+  provenance?: "curated" | "demo";
+  eventDate?: string;
   statusImageUrl?: string | null;
   statusReady?: boolean;
   statusFallback?: boolean;
@@ -71,7 +72,7 @@ function OpportunityCardArt({
     return () => observer.disconnect();
   }, [node]);
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || item.provenance === "demo") return;
     let active = true;
     fetch("/api/agent/card-image", {
       method: "POST",
@@ -86,7 +87,7 @@ function OpportunityCardArt({
     return () => {
       active = false;
     };
-  }, [visible, item.sourceUrl]);
+  }, [visible, item.sourceUrl, item.provenance]);
   return (
     <div
       ref={setNode}
@@ -100,6 +101,14 @@ function OpportunityCardArt({
     >
       {imageUrl ? (
         <img src={imageUrl} alt="" loading="lazy" />
+      ) : item.provenance === "demo" ? (
+        <div
+          className="op-art"
+          aria-hidden="true"
+          style={{
+            backgroundPosition: `${cardAppearance(item).art % 2 ? 100 : 0}% ${cardAppearance(item).art > 1 ? 100 : 0}%`,
+          }}
+        />
       ) : (
         <span className="opportunity-card-placeholder" aria-hidden="true">
           <strong>{item.organizer.slice(0, 34)}</strong>
@@ -309,11 +318,13 @@ export default function DiscoveryFeed({
                     <OpportunityCardArt item={item} color={appearance.color} />
                   </a>
                   <span className="art-badge">
-                    {item.provenance === "curated"
-                      ? "OFFICIAL SOURCE"
-                      : "AI RESEARCHED"}
+                    {item.provenance === "demo"
+                      ? "DEMO · MANUALLY ADDED"
+                      : item.provenance === "curated"
+                        ? "OFFICIAL SOURCE"
+                        : "AI RESEARCHED"}
                   </span>
-                  {onToggleInterested && (
+                  {onToggleInterested && !!item.deadline && (
                     <button
                       type="button"
                       className={`bookmark-button ${savedSourceUrls.includes(item.sourceUrl) ? "is-saved" : ""}`}
@@ -342,7 +353,11 @@ export default function DiscoveryFeed({
                     <span className={`category-pill ${appearance.color}`}>
                       {appearance.kind}
                     </span>
-                    <span className="card-format">Real opportunity</span>
+                    <span className="card-format">
+                      {item.provenance === "demo"
+                        ? "Demo selection"
+                        : "Real opportunity"}
+                    </span>
                   </div>
                   <h3>
                     <a
@@ -359,8 +374,12 @@ export default function DiscoveryFeed({
                   </p>
                   <div className="card-bottom">
                     <span>
-                      <Clock size={12} /> Apply by{" "}
-                      {formatDeadline(item.deadline)}
+                      <Clock size={12} />{" "}
+                      {item.deadline
+                        ? `Apply by ${formatDeadline(item.deadline)}`
+                        : item.eventDate
+                          ? `Event on ${formatDeadline(item.eventDate)}`
+                          : "No deadline published"}
                     </span>
                     <a
                       href={item.sourceUrl}
@@ -440,8 +459,12 @@ export default function DiscoveryFeed({
               <h2>{currentStatus.title}</h2>
               <p>{currentStatus.description}</p>
               <span className="generated-status-deadline">
-                <Clock size={15} /> Apply by{" "}
-                {formatDeadline(currentStatus.deadline)}
+                <Clock size={15} />{" "}
+                {currentStatus.deadline
+                  ? `Apply by ${formatDeadline(currentStatus.deadline)}`
+                  : currentStatus.eventDate
+                    ? `Event on ${formatDeadline(currentStatus.eventDate)}`
+                    : "No deadline published"}
               </span>
               <a
                 href={currentStatus.sourceUrl}
