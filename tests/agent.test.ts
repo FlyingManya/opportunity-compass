@@ -182,6 +182,10 @@ test("dashboard refresh deletes only this user's passed, dated opportunities", a
   assert.equal(await collection.findOne({ userId: "alice", sourceUrl: "https://a.example.org" }), null);
   assert.ok(await collection.findOne({ userId: "alice", sourceUrl: "https://b.example.org" }));
   assert.ok(await collection.findOne({ userId: "bob", sourceUrl: "https://d.example.org" }));
+  const dismissed = await handleAgent(db, "alice", emptyProfile, "agent/discoveries", "DELETE", async () => ({ sourceUrl: "https://b.example.org" }));
+  assert.equal((await dismissed.json()).removed, 1);
+  assert.equal(await collection.findOne({ userId: "alice", sourceUrl: "https://b.example.org" }), null);
+  assert.ok(await collection.findOne({ userId: "bob", sourceUrl: "https://d.example.org" }));
 });
 test("opening an owned card asks Muse Wonder for details on demand", async () => {
   const oldKey = process.env.MODEL_API_KEY;

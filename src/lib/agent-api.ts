@@ -575,9 +575,10 @@ export async function handleAgent(
     const body = (await input()) as { sourceUrl?: string };
     const sourceUrl = body.sourceUrl && publicLink(body.sourceUrl);
     if (!sourceUrl) return json({ error: "A valid source is required." }, 400);
+    const matches = { userId, sourceUrl: { $in: [body.sourceUrl, sourceUrl] } };
     const opportunity =
-      (await discoveries.findOne({ userId, sourceUrl })) ||
-      (await manual.findOne({ userId, sourceUrl }));
+      (await discoveries.findOne(matches)) ||
+      (await manual.findOne(matches));
     if (!opportunity) return json({ error: "This card is not in your dashboard." }, 404);
     if (!(await allowed(db, userId, "opportunity-detail")))
       return json({ error: "Please try again shortly." }, 429);
@@ -609,6 +610,13 @@ export async function handleAgent(
       manual.deleteMany({ userId, deadline: { $ne: "", $lt: today } }),
     ]);
     return json({ removed: (researched.deletedCount || 0) + (demo.deletedCount || 0) });
+  }
+  if (path === "agent/discoveries" && method === "DELETE") {
+    const body = (await input()) as { sourceUrl?: string };
+    const sourceUrl = body.sourceUrl && publicLink(body.sourceUrl);
+    if (!sourceUrl) return json({ error: "A valid dashboard link is required." }, 400);
+    const removed = await discoveries.deleteOne({ userId, sourceUrl: { $in: [body.sourceUrl, sourceUrl] } });
+    return json({ removed: removed.deletedCount || 0 });
   }
   if (path === "agent/discoveries" && method === "GET") {
     const today = new Intl.DateTimeFormat("en-CA", {

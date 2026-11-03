@@ -189,6 +189,15 @@ export default function DiscoveryFeed({
       setRefreshing(false);
     }
   }
+  async function removeCard(item: Discovery) {
+    const response = await fetch("/api/agent/discoveries", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceUrl: item.sourceUrl }),
+    });
+    if (response.ok) setItems((current) => current.filter((entry) => entry.sourceUrl !== item.sourceUrl));
+    else setStatusError("Could not remove that card.");
+  }
   useEffect(() => {
     let active = true;
     function refresh() {
@@ -422,6 +431,9 @@ export default function DiscoveryFeed({
                           ? "Details unverified"
                           : "Real opportunity"}
                     </span>
+                    {!item.provenance && (
+                      <button type="button" className="discovery-remove" onClick={() => removeCard(item)} aria-label={`Remove ${item.title} from dashboard`} title="Remove from dashboard"><X size={14} /></button>
+                    )}
                   </div>
                   <h3>
                     <button type="button" className="discovery-title-button" onClick={() => openDetail(item)}>

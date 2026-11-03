@@ -747,6 +747,8 @@
   cursor: pointer;
 }
 .discovery-title-button:hover { text-decoration: underline; }
+.discovery-remove { margin-left: auto; border: 0; background: transparent; color: #9e92ae; cursor: pointer; padding: 4px; }
+.discovery-remove:hover { color: #6b4aa4; }
 .discovery-detail-panel {
   width: min(660px, 100%);
   max-height: min(760px, 90vh);
