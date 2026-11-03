@@ -479,14 +479,15 @@ export default function DiscoveryFeed({
       window.clearInterval(interval);
     };
   }, []);
-  const statuses = items.filter((item) => item.statusReady);
+  const statuses = items;
   const currentStatus = statusIndex === null ? null : statuses[statusIndex];
   const currentIndex = statusIndex ?? 0;
   useEffect(() => {
     if (!openStatusSignal) return;
     if (statuses.length) setStatusIndex(0);
-    else setStatusError("Select Update status to create your first stories.");
-  }, [openStatusSignal]);
+    else if (!loading)
+      setStatusError("Find an opportunity to start your stories.");
+  }, [openStatusSignal, statuses.length, loading]);
   useEffect(() => {
     if (statusIndex === null) return;
     const previous = document.body.style.overflow;
@@ -513,10 +514,13 @@ export default function DiscoveryFeed({
     setStatusError("");
     setStatusNotice("");
     let completed = 0;
-    const missing = items.filter(
-      (item) => !item.statusReady && !!(item.deadline || item.eventDate),
-    );
-    const targets = (missing.length ? missing : items).slice(0, 4);
+    const missing = items.filter((item) => !item.statusReady);
+    if (!missing.length) {
+      setStatusNotice("All your current stories already have artwork.");
+      setUpdating(false);
+      return;
+    }
+    const targets = missing.slice(0, 4);
     setTargetTotal(targets.length);
     const outcomes = await Promise.allSettled(
       targets.map(async (item) => {
@@ -570,7 +574,7 @@ export default function DiscoveryFeed({
       );
     if (outcomes.some((outcome) => outcome.status === "fulfilled"))
       setStatusNotice(
-        "Stories are ready. Open View stories at the top of the page.",
+        `View stories includes all ${items.length} dashboard opportunities. Update status adds Muse Image artwork to up to four at a time.`,
       );
     setUpdating(false);
   }
@@ -613,6 +617,12 @@ export default function DiscoveryFeed({
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
+      {!!items.length && (
+        <p>
+          View stories includes all {items.length} dashboard opportunities.
+          Update status creates artwork for up to four at a time.
+        </p>
+      )}
       {statusError && (
         <p className="status-error" role="alert">
           {statusError}

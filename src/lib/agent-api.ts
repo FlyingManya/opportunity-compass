@@ -112,6 +112,12 @@ async function statusOpportunity(
     deadline: { $gte: today },
   });
   if (found) return found;
+  const undated = await db.collection("discovered_opportunities").findOne({
+    userId,
+    sourceUrl,
+    deadline: "",
+  });
+  if (undated) return undated;
   const manual = await db
     .collection<DemoOpportunity & { userId: string }>("manual_opportunities")
     .findOne({ userId, sourceUrl });

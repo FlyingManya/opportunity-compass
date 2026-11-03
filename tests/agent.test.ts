@@ -1205,7 +1205,7 @@ test("status remains viewable with labelled template artwork when Muse Image is 
       title: "Bloomberg x WiCyS CTF",
       organizer: "WiCyS",
       description: "A virtual cybersecurity competition.",
-      deadline: "2026-11-13",
+      deadline: "",
     });
     const response = await handleAgent(
       db,
