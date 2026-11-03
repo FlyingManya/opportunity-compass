@@ -129,11 +129,13 @@ export default function DiscoveryFeed({
   savedSourceUrls = [],
   savingSourceUrl = "",
   onToggleInterested,
+  onCountChange,
 }: {
   openStatusSignal?: number;
   savedSourceUrls?: string[];
   savingSourceUrl?: string;
   onToggleInterested?: (item: Discovery) => void;
+  onCountChange?: (count: number) => void;
 }) {
   const [items, setItems] = useState<Discovery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +150,9 @@ export default function DiscoveryFeed({
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (!loading) onCountChange?.(items.length);
+  }, [items.length, loading, onCountChange]);
   async function openDetail(item: Discovery) {
     setSelected(item);
     setDetail("");

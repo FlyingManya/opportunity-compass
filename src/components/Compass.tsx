@@ -136,6 +136,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const [resumeBusy, setResumeBusy] = useState(false);
   const [savingResearch, setSavingResearch] = useState("");
   const [openStatusSignal, setOpenStatusSignal] = useState(0);
+  const [researchCount, setResearchCount] = useState<number | null>(null);
   const [agentPrompt, setAgentPrompt] = useState("");
   const results = filterCatalog(
     catalog,
@@ -1031,7 +1032,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   navigate("agent");
                 }}
               />
-              <section className="search-card">
+              {researchCount === 0 && <><section className="search-card">
                 <div className="search-input">
                   <Search size={19} />
                   <input
@@ -1127,16 +1128,17 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   <SlidersHorizontal size={13} />
                   {profile.onboarded ? "Profile relevance" : "Explore all"}
                 </span>
-              </div>
+              </div></>}
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
+                onCountChange={setResearchCount}
                 savedSourceUrls={researchedSaved.map(
                   (entry) => entry.sourceUrl,
                 )}
                 savingSourceUrl={savingResearch}
                 onToggleInterested={toggleResearched}
               />
-              <div className="sample-note">
+              {researchCount === 0 && <><div className="sample-note">
                 <span className="sample-dot" />
                 <p>
                   <strong>A preview of what’s possible.</strong> These{" "}
@@ -1196,7 +1198,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 >
                   Try something different <ArrowUpRight size={14} />
                 </button>
-              </div>
+              </div></>}
             </>
           )}
           {view === "saved" && (
