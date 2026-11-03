@@ -22,7 +22,7 @@ import { tokenHash } from "./security";
 import { curatedForUser } from "./curated-opportunities";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
-import { hackathonLeadsFromSources, plausibleEventSource } from "./source-leads";
+import { currentDevpostEvent, hackathonLeadsFromSources, isDevpostEventSource, plausibleEventSource } from "./source-leads";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
@@ -35,6 +35,7 @@ type DiscoveredOpportunity = OpportunityIdentity & {
   reason: string;
   discoveredAt: string;
   status: string;
+  requestedRemote?: boolean;
 };
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -643,11 +644,24 @@ export async function handleAgent(
     const currentManual = manualRows.filter(
       (item) => (item.deadline || item.eventDate || "9999-12-31") >= today,
     );
+    const checkedUnverified = await Promise.all(
+      unverifiedRows.map(async (item) => {
+        if (!plausibleEventSource(item.sourceUrl)) return null;
+        if (!isDevpostEventSource(item.sourceUrl)) return item;
+        try {
+          return (await currentDevpostEvent(item.sourceUrl, today, !!item.requestedRemote))
+            ? item
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
     const opportunities = uniqueOpportunities([
       ...currentManual,
       ...curated,
       ...rows,
-      ...unverifiedRows.filter((item) => plausibleEventSource(item.sourceUrl)),
+      ...checkedUnverified.filter((item) => item !== null),
     ]).sort((left, right) =>
       (
         left.deadline ||
@@ -927,8 +941,15 @@ export async function handleAgent(
             message,
             known,
             today,
-          ).slice(0, 4 - added - leadsAdded);
+          );
           for (const lead of sourceLeads) {
+            if (added + leadsAdded >= 4) break;
+            try {
+              if (!(await currentDevpostEvent(lead.sourceUrl, today, /\b(remote|online|virtual)\b/i.test(message))))
+                continue;
+            } catch {
+              continue;
+            }
             await discoveries.updateOne(
               { userId, sourceUrl: lead.sourceUrl },
               {
@@ -942,6 +963,7 @@ export async function handleAgent(
                     "A possible match for your request; details have not been verified yet.",
                   discoveredAt: new Date().toISOString(),
                   status: "Search lead; deadline and eligibility unverified",
+                  requestedRemote: /\b(remote|online|virtual)\b/i.test(message),
                 },
               },
               { upsert: true },

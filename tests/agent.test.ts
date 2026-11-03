@@ -21,7 +21,7 @@ import {
 import { handleAgent } from "../src/lib/agent-api";
 import { curatedForUser } from "../src/lib/curated-opportunities";
 import { matchedDiscoverySource } from "../src/lib/discovery-source";
-import { hackathonLeadsFromSources, plausibleEventSource } from "../src/lib/source-leads";
+import { currentDevpostEvent, hackathonLeadsFromSources, plausibleEventSource } from "../src/lib/source-leads";
 import {
   sameOpportunity,
   uniqueOpportunities,
@@ -203,6 +203,16 @@ test("hackathon search citations become distinct source leads without inventing 
     },
   ]);
   assert.equal(plausibleEventSource("https://info.devpost.com/book-a-demo"), false);
+});
+
+test("Devpost event leads must still be current and remote when requested", async () => {
+  const page = (endDate: string, mode: string) =>
+    `<script type="application/ld+json" id="challenge-json-ld">${JSON.stringify({ endDate, eventAttendanceMode: mode })}</script>`;
+  const fetcher = async (url: string) =>
+    new Response(page(url.includes("past") ? "2026-03-10" : "2026-11-10", url.includes("offline") ? "https://schema.org/OfflineEventAttendanceMode" : "https://schema.org/OnlineEventAttendanceMode"));
+  assert.equal(await currentDevpostEvent("https://past.devpost.com/", "2026-11-03", false, fetcher as typeof fetch), false);
+  assert.equal(await currentDevpostEvent("https://offline.devpost.com/", "2026-11-03", true, fetcher as typeof fetch), false);
+  assert.equal(await currentDevpostEvent("https://current.devpost.com/rules", "2026-11-03", true, fetcher as typeof fetch), true);
 });
 
 test("incoming phone share preserves a caption and extracts its link", () => {
@@ -1398,8 +1408,11 @@ test("search links reach the dashboard even when the model cannot verify a deadl
   const original = globalThis.fetch;
   process.env.CLAUDE_API_KEY = "test-only";
   const eventUrl = "https://new-ai-2026.devpost.com/";
-  globalThis.fetch = (async () =>
-    Response.json({
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input) === eventUrl) {
+      return new Response(`<script id="challenge-json-ld" type="application/ld+json">${JSON.stringify({ endDate: "2999-11-10", eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" })}</script>`);
+    }
+    return Response.json({
       content: [
         {
           type: "text",
@@ -1413,7 +1426,8 @@ test("search links reach the dashboard even when the model cannot verify a deadl
           ],
         },
       ],
-    })) as typeof fetch;
+    });
+  }) as typeof fetch;
   try {
     const db = memoryDatabase();
     const response = await handleAgent(

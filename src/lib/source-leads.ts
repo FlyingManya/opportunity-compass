@@ -16,6 +16,51 @@ export function plausibleEventSource(url: string) {
   }
 }
 
+export function isDevpostEventSource(url: string) {
+  try {
+    return new URL(url).hostname.toLowerCase().endsWith(".devpost.com") &&
+      plausibleEventSource(url);
+  } catch {
+    return false;
+  }
+}
+
+// Devpost publishes event dates and attendance mode in JSON-LD on each event page.
+// Search citations alone can point to closed or in-person events.
+export async function currentDevpostEvent(
+  sourceUrl: string,
+  today: string,
+  remoteOnly = false,
+  fetcher: typeof fetch = fetch,
+) {
+  if (!isDevpostEventSource(sourceUrl)) return false;
+  const eventUrl = new URL(sourceUrl);
+  eventUrl.pathname = "/";
+  eventUrl.search = "";
+  const response = await fetcher(eventUrl.toString(), {
+    redirect: "manual",
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!response.ok) return false;
+  const html = await response.text();
+  const jsonLd = html.match(
+    /<script\b(?=[^>]*\bid=["']challenge-json-ld["'])[^>]*>([\s\S]*?)<\/script>/i,
+  )?.[1];
+  if (!jsonLd) return false;
+  try {
+    const event = JSON.parse(jsonLd) as {
+      endDate?: string;
+      eventAttendanceMode?: string;
+    };
+    if (!event.endDate || event.endDate.slice(0, 10) < today) return false;
+    if (remoteOnly && !/OnlineEventAttendanceMode/i.test(event.eventAttendanceMode || ""))
+      return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // A search citation is a lead, not proof that registration is still open.
 export function hackathonLeadsFromSources(
   sources: SearchSource[],
