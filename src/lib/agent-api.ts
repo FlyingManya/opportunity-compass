@@ -573,9 +573,10 @@ export async function handleAgent(
   }
   if (path === "agent/discoveries/detail" && method === "POST") {
     const body = (await input()) as { sourceUrl?: string };
-    const sourceUrl = body.sourceUrl && publicLink(body.sourceUrl);
+    const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
+    const sourceUrl = publicLink(rawUrl);
     if (!sourceUrl) return json({ error: "A valid source is required." }, 400);
-    const matches = { userId, sourceUrl: { $in: [body.sourceUrl, sourceUrl] } };
+    const matches = { userId, sourceUrl: { $in: [rawUrl, sourceUrl] } };
     const opportunity =
       (await discoveries.findOne(matches)) ||
       (await manual.findOne(matches));
@@ -613,9 +614,10 @@ export async function handleAgent(
   }
   if (path === "agent/discoveries" && method === "DELETE") {
     const body = (await input()) as { sourceUrl?: string };
-    const sourceUrl = body.sourceUrl && publicLink(body.sourceUrl);
+    const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
+    const sourceUrl = publicLink(rawUrl);
     if (!sourceUrl) return json({ error: "A valid dashboard link is required." }, 400);
-    const removed = await discoveries.deleteOne({ userId, sourceUrl: { $in: [body.sourceUrl, sourceUrl] } });
+    const removed = await discoveries.deleteOne({ userId, sourceUrl: { $in: [rawUrl, sourceUrl] } });
     return json({ removed: removed.deletedCount || 0 });
   }
   if (path === "agent/discoveries" && method === "GET") {
