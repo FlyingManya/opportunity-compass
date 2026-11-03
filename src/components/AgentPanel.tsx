@@ -78,6 +78,7 @@ export default function AgentPanel({
   const [showArchived, setShowArchived] = useState(false);
   const [install, setInstall] = useState<InstallEvent | null>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const linkInput = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const importPanel = useRef<HTMLDivElement>(null);
   const priorFocus = useRef<HTMLElement | null>(null);
@@ -89,6 +90,16 @@ export default function AgentPanel({
       onPromptConsumed?.();
     }
   }, [initialPrompt, onPromptConsumed]);
+
+  function openLinkForm() {
+    setTab("links");
+    setShowArchived(false);
+    setError("");
+    linkInput.current?.focus();
+  }
+  useEffect(() => {
+    if (tab === "links" && !loading && !importing) linkInput.current?.focus();
+  }, [tab, loading, importing]);
 
   function closeImport() {
     if (busy) return;
@@ -304,13 +315,7 @@ export default function AgentPanel({
             Talk it through. Bring a link. Find your next step.
           </p>
         </div>
-        <button
-          className="secondary"
-          onClick={() => {
-            setError("");
-            setImporting(true);
-          }}
-        >
+        <button className="secondary" onClick={openLinkForm}>
           <Plus size={17} /> Add a link
         </button>
       </div>
@@ -543,10 +548,7 @@ export default function AgentPanel({
                   Bring an Instagram reel, LinkedIn post, or application link.
                   Add a caption if the post isn’t publicly readable.
                 </p>
-                <button
-                  className="text-button"
-                  onClick={() => setImporting(true)}
-                >
+                <button className="text-button" onClick={openLinkForm}>
                   Save a shared link
                   <Plus size={16} />
                 </button>
@@ -566,8 +568,9 @@ export default function AgentPanel({
               </span>
               <h2>What are you looking for?</h2>
               <p>
-                Your brief stays in your account. It gives the connected
-                assistant context; saving it doesn’t automatically run a search.
+                Save what you want to find and any websites you trust. The next
+                chat search uses your saved brief when AI context sharing is
+                enabled. Saving does not search the web or add cards by itself.
               </p>
               <label>
                 My opportunity brief
@@ -727,6 +730,63 @@ export default function AgentPanel({
                   {showArchived ? "Active links" : "Archived links"}
                 </button>
               </div>
+              {!showArchived && (
+                <form className="agent-link-entry" onSubmit={saveLink}>
+                  <h3>Paste an opportunity link</h3>
+                  <p>
+                    Save a public Instagram reel, LinkedIn post, or website
+                    link. A saved link stays in your private inbox; use “Discuss
+                    this” to ask the assistant to research it.
+                  </p>
+                  <label>
+                    Opportunity link
+                    <input
+                      ref={linkInput}
+                      type="url"
+                      required
+                      maxLength={2048}
+                      value={draft.url}
+                      onChange={(event) =>
+                        setDraft({ ...draft, url: event.target.value })
+                      }
+                      placeholder="https://www.instagram.com/reel/…"
+                    />
+                  </label>
+                  <div className="agent-link-entry-details">
+                    <label>
+                      Title (optional)
+                      <input
+                        maxLength={180}
+                        value={draft.title}
+                        onChange={(event) =>
+                          setDraft({ ...draft, title: event.target.value })
+                        }
+                        placeholder="Summer research program"
+                      />
+                    </label>
+                    <label>
+                      Caption or details (helpful for social posts)
+                      <textarea
+                        rows={2}
+                        maxLength={6000}
+                        value={draft.caption}
+                        onChange={(event) =>
+                          setDraft({ ...draft, caption: event.target.value })
+                        }
+                        placeholder="Paste the event name, caption, or details you saw."
+                      />
+                    </label>
+                  </div>
+                  <button className="primary" disabled={busy}>
+                    {busy ? (
+                      <LoaderCircle size={16} className="spin" />
+                    ) : (
+                      <Plus size={16} />
+                    )}
+                    Save shared link
+                  </button>
+                </form>
+              )}
               <div className="agent-link-grid">
                 {!visibleLeads.length && (
                   <div className="agent-empty agent-links-empty">
@@ -741,10 +801,7 @@ export default function AgentPanel({
                       or event. It stays in your account.
                     </p>
                     {!showArchived && (
-                      <button
-                        className="secondary"
-                        onClick={() => setImporting(true)}
-                      >
+                      <button className="secondary" onClick={openLinkForm}>
                         Add my first link
                         <Plus size={16} />
                       </button>
@@ -788,7 +845,7 @@ export default function AgentPanel({
                             title: lead.title,
                             caption: lead.caption,
                           });
-                          setImporting(true);
+                          openLinkForm();
                         }}
                       >
                         Edit details
