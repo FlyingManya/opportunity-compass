@@ -15,6 +15,43 @@ type Settings = {
   model: string;
   provider: "claude" | "meta" | "hosted";
 };
+const discoveryFormat = {
+  format: {
+    type: "json_schema",
+    name: "opportunity_discovery",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        opportunities: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              title: { type: "string" },
+              organizer: { type: "string" },
+              description: { type: "string" },
+              deadline: { type: "string" },
+              sourceUrl: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: [
+              "title",
+              "organizer",
+              "description",
+              "deadline",
+              "sourceUrl",
+              "reason",
+            ],
+          },
+        },
+      },
+      required: ["opportunities"],
+    },
+  },
+};
 function settings(): Settings | null {
   if (process.env.AGENT_PROVIDER === "meta") {
     if (!process.env.MODEL_API_KEY) return null;
@@ -242,6 +279,10 @@ export async function askAgent(
   ) {
     instructions += `\nPublic starting sites for women-in-tech searches: ${sourceExamples.map(({ name, url }) => `${name}: ${url}`).join("; ")}. Search for current individual listings on these and other official organizer sites. A directory or event calendar is a lead, not proof that an application is open. WomenHack is a hiring-event platform, not a hackathon platform; GHC scholarships may be closed. Broaden to relevant competitions and events only when the latest request allows them.`;
   }
+  if (discover && /\bhackathons?\b/i.test(history.at(-1)?.content || "")) {
+    instructions +=
+      "\nFor hackathons, search current individual listings on https://devpost.com/c/artificial-intelligence as a starting point, then use each event's official page to verify that it is online and has a future deadline. Do not use the directory itself as an opportunity source.";
+  }
   const messages = (
     config.provider === "meta" && !preferences.useMetaContext
       ? history.slice(-1)
@@ -369,6 +410,7 @@ export async function askAgent(
                       config.model,
                     input: discoveryInput,
                     tools: [{ type: "web_search" }],
+                    text: discoveryFormat,
                     store: false,
                   }
                 : {
@@ -385,6 +427,7 @@ export async function askAgent(
                         search_context_size: discover ? "high" : "medium",
                       },
                     ],
+                    ...(discover ? { text: discoveryFormat } : {}),
                     ...(discover
                       ? { include: ["web_search_call.results"] }
                       : {}),
@@ -402,11 +445,11 @@ export async function askAgent(
                 },
         ),
         signal: AbortSignal.timeout(
-        config.provider === "meta" && discover
-          ? metaModelOverride
-            ? 80000
-            : 120000
-          : 35000,
+          config.provider === "meta" && discover
+            ? metaModelOverride
+              ? 80000
+              : 120000
+            : 35000,
         ),
       },
     );

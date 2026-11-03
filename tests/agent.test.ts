@@ -922,6 +922,9 @@ test("model requests select the configured transport and do not expose keys in s
     assert.equal(typeof calls[4].body.input, "string");
     assert.ok(calls[4].body.input.includes("Find opportunities"));
     assert.deepEqual(calls[4].body.tools, [{ type: "web_search" }]);
+    assert.ok(calls[4].body.text, JSON.stringify(calls[4].body));
+    assert.equal(calls[4].body.text.format.type, "json_schema");
+    assert.equal(calls[4].body.text.format.strict, true);
     assert.equal(calls[4].body.include, undefined);
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
@@ -941,6 +944,7 @@ test("model requests select the configured transport and do not expose keys in s
     assert.equal(calls[5].body.input[1].content[1].type, "input_file");
     assert.ok(calls[5].body.instructions.includes("Engineer"));
     assert.ok(calls[5].body.instructions.includes("DISCOVERY TASK"));
+    assert.equal(calls[5].body.text.format.name, "opportunity_discovery");
     await askAgent(
       emptyAgentPreferences,
       emptyProfile,
