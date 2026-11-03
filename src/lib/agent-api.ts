@@ -828,6 +828,7 @@ export async function handleAgent(
             imports as unknown as SharedLead[],
             today,
           ),
+          ...(await manual.find({ userId }).toArray()),
           ...(await discoveries.find({ userId }).toArray()),
         ];
         for (const item of items) {

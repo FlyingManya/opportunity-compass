@@ -1219,6 +1219,74 @@ test("discovery saves only cited opportunities with future deadlines for the cur
   }
 });
 
+test("AI does not report an already visible manual opportunity as newly added", async () => {
+  const previous = process.env.CLAUDE_API_KEY;
+  const original = globalThis.fetch;
+  process.env.CLAUDE_API_KEY = "test-only";
+  const url = "https://example.org/remote-ai-hackathon";
+  globalThis.fetch = (async () =>
+    Response.json({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            opportunities: [
+              {
+                title: "Remote AI Hackathon",
+                organizer: "Organizer",
+                description: "An online event",
+                deadline: "2999-01-01",
+                sourceUrl: url,
+                reason: "Matches the request",
+              },
+            ],
+          }),
+          citations: [
+            {
+              type: "web_search_result_location",
+              title: "Official",
+              url,
+            },
+          ],
+        },
+      ],
+    })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    await db.collection("manual_opportunities").insertOne({
+      userId: "alice",
+      title: "Remote AI Hackathon",
+      organizer: "Organizer",
+      sourceUrl: url,
+      deadline: "2999-01-01",
+    });
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/chat",
+      "POST",
+      async () => ({ message: "Find a remote AI hackathon" }),
+    );
+    const body = await response.json();
+    assert.equal(body.added, 0);
+    assert.match(body.reply.content, /already on your Discover dashboard/);
+    assert.equal(
+      (
+        await db
+          .collection("discovered_opportunities")
+          .find({ userId: "alice" })
+          .toArray()
+      ).length,
+      0,
+    );
+  } finally {
+    globalThis.fetch = original;
+    if (previous === undefined) delete process.env.CLAUDE_API_KEY;
+    else process.env.CLAUDE_API_KEY = previous;
+  }
+});
+
 test("a user-supplied official page can match a searched organizer site", async () => {
   const previous = process.env.CLAUDE_API_KEY;
   const original = globalThis.fetch;
