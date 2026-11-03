@@ -3794,6 +3794,143 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.sample-empty-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 20px 24px;
+  border: 1px solid #e8e1f0;
+  border-radius: 14px;
+  background: #fff;
+}
+.sample-empty-nudge p {
+  margin: 0;
+  color: #685a74;
+  font-size: 15px;
+}
+.sample-walkthrough {
+  display: grid;
+  grid-template-columns: minmax(260px, 390px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+  margin-top: 24px;
+}
+.sample-example-card {
+  align-self: start;
+  box-shadow: 0 12px 35px #654d850e;
+}
+.sample-example-card .card-art-wrap {
+  height: 200px;
+}
+.sample-example-card .art-badge {
+  top: auto;
+  bottom: 14px;
+  font-weight: 700;
+}
+.sample-example-interest {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffef3e6;
+  color: #7155a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sample-example-card .op-card-body {
+  padding: 22px;
+}
+.sample-example-card h3 {
+  margin: 16px 0 7px;
+  font-size: 21px;
+  line-height: 1.4;
+}
+.sample-example-card .organizer {
+  font-size: 13px;
+}
+.sample-example-description {
+  min-height: 95px;
+  color: #6c6275;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.sample-example-card .card-bottom span {
+  font-size: 13px;
+}
+.sample-example-card .relevance {
+  font-size: 13px;
+}
+.sample-walkthrough-copy {
+  padding: 34px;
+  border: 1px solid #e6def0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f7f3fd, #fff);
+}
+.sample-walkthrough-copy h2 {
+  max-width: 680px;
+  margin: 12px 0 24px;
+  font: 750 clamp(25px, 3vw, 36px)/1.25 var(--heading);
+  letter-spacing: -0.7px;
+}
+.sample-walkthrough-copy ol {
+  margin: 0;
+  padding-left: 24px;
+}
+.sample-walkthrough-copy li {
+  margin: 0 0 18px;
+  padding-left: 8px;
+  color: #61566d;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.sample-walkthrough-copy li::marker {
+  color: #7958ae;
+  font-weight: 800;
+}
+.sample-walkthrough-copy li strong {
+  color: #31273c;
+}
+.sample-walkthrough-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+.sample-walkthrough-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sample-walkthrough-note {
+  margin: 18px 0 0;
+  color: #81768b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 820px) {
+  .sample-walkthrough {
+    grid-template-columns: 1fr;
+  }
+  .sample-example-card {
+    max-width: 490px;
+  }
+}
+@media (max-width: 500px) {
+  .sample-walkthrough-copy {
+    padding: 24px 20px;
+  }
+  .sample-example-card .card-art-wrap {
+    height: 160px;
+  }
+}
+
 .opportunity-card-image {
   width: 100%;
   height: 100%;

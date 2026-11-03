@@ -60,7 +60,7 @@ import {
 } from "@/lib/catalog";
 import { calendarFile } from "@/lib/calendar";
 import type { ResearchedSaved } from "@/lib/agent-types";
-type View = "discover" | "saved" | "calendar" | "profile" | "agent";
+type View = "discover" | "samples" | "saved" | "calendar" | "profile" | "agent";
 const categoryIcons = {
   all: Sparkles,
   jobs: BriefcaseBusiness,
@@ -99,7 +99,9 @@ function Art({ o, className = "" }: { o: Opportunity; className?: string }) {
   );
 }
 export default function Compass({ initialUser }: { initialUser: User }) {
-  const [view, setView] = useState<View>("discover"),
+  const [view, setView] = useState<View>(
+      initialUser.profile.onboarded ? "discover" : "samples",
+    ),
     [category, setCategory] = useState<Category>("all"),
     [query, setQuery] = useState(""),
     [month, setMonth] = useState(""),
@@ -131,8 +133,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
   const [draft, setDraft] = useState<Profile>(initialUser.profile);
   const [newField, setNewField] = useState(""),
     [newYears, setNewYears] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null),
-    searchRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
   const [savingResearch, setSavingResearch] = useState("");
   const [openStatusSignal, setOpenStatusSignal] = useState(0);
@@ -440,7 +441,10 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       ]);
       setSaved(sampleSaves.items);
       setResearchedSaved(researchSaves.items);
-      if (!b.user.profile.onboarded) setOnboarding(true);
+      if (!b.user.profile.onboarded) {
+        setView("samples");
+        setOnboarding(true);
+      }
       setToast("Welcome to your personal space.");
     } catch (e) {
       setError((e as Error).message);
@@ -776,8 +780,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 <button
                   key={c}
                   onClick={() => {
-                    setCategory(c);
-                    navigate("discover");
+                    setAgentPrompt(
+                      c === "custom"
+                        ? "Help me find something new to explore based on my interests."
+                        : `Find ${categoryLabels[c].toLowerCase()} that match my interests.`,
+                    );
+                    navigate("agent");
                   }}
                 >
                   <Icon size={16} />
@@ -804,8 +812,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
           </p>
           <button
             onClick={() => {
-              navigate("discover");
-              searchRef.current?.focus();
+              navigate("agent");
             }}
           >
             Explore a possibility <ArrowUpRight size={14} />
@@ -871,19 +878,22 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             <strong>
               {view === "agent"
                 ? "Chat & links"
-                : view === "discover"
-                  ? "Discover"
-                  : view === "saved"
-                    ? "Interested"
-                    : view === "calendar"
-                      ? "My calendar"
-                      : "My profile"}
+                : view === "samples"
+                  ? "Sample collection"
+                  : view === "discover"
+                    ? "Discover"
+                    : view === "saved"
+                      ? "Interested"
+                      : view === "calendar"
+                        ? "My calendar"
+                        : "My profile"}
             </strong>
           </div>
           <div className="top-actions">
             <button
               className="collection-badge"
-              onClick={() => setIntegration(true)}
+              onClick={() => navigate("samples")}
+              aria-pressed={view === "samples"}
             >
               <span /> Sample collection
             </button>
@@ -972,13 +982,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                     </p>
                     <button
                       className="hero-button"
-                      onClick={() => {
-                        searchRef.current?.focus();
-                        document.querySelector(".search-card")?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        });
-                      }}
+                      onClick={() => navigate("agent")}
                     >
                       Let’s find something <ArrowUpRight size={16} />
                     </button>
@@ -1054,107 +1058,6 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   navigate("agent");
                 }}
               />
-              {researchCount === 0 && (
-                <>
-                  <section className="search-card">
-                    <div className="search-input">
-                      <Search size={19} />
-                      <input
-                        ref={searchRef}
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="AI hackathons, a new role, pottery near you…"
-                        aria-label="Search sample opportunities"
-                      />
-                      {query && (
-                        <button
-                          className="icon-button"
-                          aria-label="Clear search"
-                          onClick={() => setQuery("")}
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                      <span className="search-shortcut">SAMPLE SEARCH</span>
-                    </div>
-                    <div className="search-filters">
-                      <label>
-                        <CalendarDays size={14} />
-                        <input
-                          type="month"
-                          aria-label="Filter by month"
-                          value={month}
-                          onChange={(e) => setMonth(e.target.value)}
-                        />
-                      </label>
-                      <select
-                        aria-label="Date filter type"
-                        value={dateType}
-                        onChange={(e) =>
-                          setDateType(e.target.value as "deadline" | "event")
-                        }
-                      >
-                        <option value="deadline">Applications close</option>
-                        <option value="event">Events happen</option>
-                      </select>
-                      <select
-                        aria-label="Opportunity format"
-                        value={format}
-                        onChange={(e) => setFormat(e.target.value)}
-                      >
-                        <option value="all">Any format</option>
-                        <option>Remote</option>
-                        <option>In person</option>
-                        <option>Hybrid</option>
-                      </select>
-                      {month && (
-                        <button
-                          className="text-button"
-                          onClick={() => setMonth("")}
-                        >
-                          Clear month
-                        </button>
-                      )}
-                    </div>
-                  </section>
-                  <div className="section-heading">
-                    <div
-                      className="category-tabs"
-                      role="tablist"
-                      aria-label="Opportunity categories"
-                    >
-                      {(
-                        [
-                          "all",
-                          "hackathons",
-                          "women-tech",
-                          "custom",
-                          "jobs",
-                        ] as Category[]
-                      ).map((c) => (
-                        <button
-                          role="tab"
-                          aria-selected={category === c}
-                          key={c}
-                          className={category === c ? "active" : ""}
-                          onClick={() => setCategory(c)}
-                        >
-                          {c === "all" && <Sparkles size={13} />}{" "}
-                          {c === "jobs"
-                            ? "Jobs"
-                            : c === "custom"
-                              ? "Something new"
-                              : categoryLabels[c]}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="sort-note">
-                      <SlidersHorizontal size={13} />
-                      {profile.onboarded ? "Profile relevance" : "Explore all"}
-                    </span>
-                  </div>
-                </>
-              )}
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
                 onCountChange={setResearchCount}
@@ -1184,71 +1087,128 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                 onToggleInterested={toggleResearched}
               />
               {researchCount === 0 && (
-                <>
-                  <div className="sample-note">
-                    <span className="sample-dot" />
-                    <p>
-                      <strong>A preview of what’s possible.</strong> These{" "}
-                      {catalog.length} opportunities below are fictional
-                      samples.
+                <div className="sample-empty-nudge">
+                  <p>Ready to see an example first?</p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => navigate("samples")}
+                  >
+                    Explore the sample card <ArrowUpRight size={14} />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {view === "samples" && (
+            <>
+              <div className="greeting-row">
+                <div>
+                  <p className="eyebrow">A SAFE PLACE TO START</p>
+                  <h1>See how your dashboard works.</h1>
+                  <p className="subtitle">
+                    This fictional card shows what a real opportunity will look
+                    like when you discover one.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => navigate("discover")}
+                >
+                  Go to my dashboard <ArrowUpRight size={15} />
+                </button>
+              </div>
+              <section
+                className="sample-walkthrough"
+                aria-label="Sample dashboard card and walkthrough"
+              >
+                <article
+                  className="op-card sample-example-card"
+                  aria-label="Fictional example opportunity card"
+                >
+                  <div className="card-art-wrap">
+                    <Art o={catalog[0]} />
+                    <span className="art-badge">FICTIONAL EXAMPLE</span>
+                    <span className="sample-example-interest">
+                      <Bookmark size={15} /> Interested button
+                    </span>
+                  </div>
+                  <div className="op-card-body">
+                    <div className="card-category-row">
+                      <span className="category-pill lilac">
+                        Example hackathon
+                      </span>
+                      <span className="card-format">Remote</span>
+                    </div>
+                    <h3>Your next possibility appears here.</h3>
+                    <p className="organizer">
+                      Sample organizer · for demonstration only
+                    </p>
+                    <p className="sample-example-description">
+                      A card gives you the opportunity title, a short summary,
+                      an image, the application deadline when known, and a link
+                      to check the source.
+                    </p>
+                    <div className="card-bottom">
+                      <span>
+                        <Clock size={13} /> Deadline or “not mentioned” appears
+                        here
+                      </span>
+                      <ArrowUpRight size={17} />
+                    </div>
+                    <p className="relevance">
+                      <Sparkles size={12} /> Your match reason appears here.
                     </p>
                   </div>
-                  {results.length ? (
-                    <div className="opportunity-grid">
-                      {results.map((o) => (
-                        <OpportunityCard
-                          key={o.id}
-                          o={o}
-                          saved={!!saved.find((s) => s.opportunityId === o.id)}
-                          profile={profile}
-                          onOpen={() => setSelected(o)}
-                          onSave={() => saveOpportunity(o)}
-                          busy={busy}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="empty-state">
-                      <Search size={28} />
-                      <h3>No sample opportunities match yet.</h3>
-                      <p>
-                        This searches the starter collection, not the live web.
-                        Try a category or a broader term.
-                      </p>
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          setQuery("");
-                          setCategory("all");
-                          setMonth("");
-                          setFormat("all");
-                        }}
-                      >
-                        Reset filters
-                      </button>
-                    </div>
-                  )}
-                  <div className="bottom-prompt">
-                    <span>✧</span>
-                    <div>
-                      <h3>There’s more than one kind of next step.</h3>
-                      <p>
-                        A dream job, a weekend workshop, or a community that
-                        gets you.
-                      </p>
-                    </div>
+                </article>
+                <div className="sample-walkthrough-copy">
+                  <p className="eyebrow">YOUR FIRST FOUR STEPS</p>
+                  <h2>From curiosity to a clear next step.</h2>
+                  <ol>
+                    <li>
+                      <strong>Tell us what interests you.</strong> Add your
+                      goals in My profile or tell the companion what you want to
+                      find.
+                    </li>
+                    <li>
+                      <strong>Explore researched cards.</strong> Muse searches
+                      for links; open a card and check its original page before
+                      applying.
+                    </li>
+                    <li>
+                      <strong>Keep promising opportunities.</strong> Select
+                      Interested. A known deadline then appears in your in-app
+                      calendar.
+                    </li>
+                    <li>
+                      <strong>Fill gaps and stay current.</strong> Ask Muse to
+                      recheck a missing deadline or enter one yourself. Use
+                      stories for a quick look.
+                    </li>
+                  </ol>
+                  <div className="sample-walkthrough-actions">
                     <button
-                      className="text-button"
-                      onClick={() => {
-                        setCategory("custom");
-                        setQuery("");
-                      }}
+                      type="button"
+                      className="primary"
+                      onClick={() => navigate("agent")}
                     >
-                      Try something different <ArrowUpRight size={14} />
+                      Find real opportunities <ArrowUpRight size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => navigate("profile")}
+                    >
+                      Review my profile
                     </button>
                   </div>
-                </>
-              )}
+                  <p className="sample-walkthrough-note">
+                    This example is not an application and cannot be saved to
+                    Interested.
+                  </p>
+                </div>
+              </section>
             </>
           )}
           {view === "saved" && (
@@ -1938,8 +1898,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             <div>
               <strong>Opportunity discovery</strong>
               <span>
-                Fictional sample collection · live research is not implemented
-                yet
+                Sample walkthrough is separate from live Muse research.
               </span>
             </div>
             <span className="status-chip">Samples</span>
@@ -2263,74 +2222,5 @@ function Empty({
         <ArrowUpRight size={14} />
       </button>
     </div>
-  );
-}
-function OpportunityCard({
-  o,
-  saved,
-  profile,
-  onOpen,
-  onSave,
-  busy,
-}: {
-  o: Opportunity;
-  saved: boolean;
-  profile: Profile;
-  onOpen: () => void;
-  onSave: () => void;
-  busy: boolean;
-}) {
-  const r = relevance(o, profile);
-  return (
-    <article className="op-card">
-      <div className="card-art-wrap">
-        <button
-          className="art-open"
-          onClick={onOpen}
-          aria-label={`View ${o.title}`}
-        >
-          <Art o={o} />
-        </button>
-        <span className="art-badge">SAMPLE</span>
-        <button
-          className={`bookmark-button ${saved ? "is-saved" : ""}`}
-          disabled={busy}
-          aria-label={saved ? `Unsave ${o.title}` : `Save ${o.title}`}
-          aria-pressed={saved}
-          onClick={onSave}
-        >
-          <Bookmark size={17} fill={saved ? "currentColor" : "none"} />
-        </button>
-      </div>
-      <div className="op-card-body">
-        <div className="card-category-row">
-          <span className={`category-pill ${o.color}`}>{o.kind}</span>
-          <span className="card-format">{o.format}</span>
-        </div>
-        <h3>
-          <button onClick={onOpen}>{o.title}</button>
-        </h3>
-        <p className="organizer">{o.organizer}</p>
-        <div className="card-tags">
-          {o.tags.slice(0, 2).map((t) => (
-            <span key={t}>{t}</span>
-          ))}
-        </div>
-        <div className="card-bottom">
-          <span>
-            <Clock size={12} /> Apply by {fmt(o.deadline)}
-          </span>
-          <button onClick={onOpen} aria-label={`Explore ${o.title}`}>
-            <ArrowUpRight size={18} />
-          </button>
-        </div>
-        {profile.onboarded && (
-          <p className={`relevance ${r.ineligible ? "ineligible" : ""}`}>
-            <Sparkles size={11} />
-            {r.reason}
-          </p>
-        )}
-      </div>
-    </article>
   );
 }
