@@ -171,7 +171,7 @@ export function parseAgentReply(body: Record<string, any>, meta: boolean) {
         .flatMap((item: any) => item.content || [])
         .filter((part: any) => part.type === "output_text")
         .map((part: any) => part.text || "")
-        .join("\n")
+        .join("\n") || body.output_text
     : body.choices?.[0]?.message?.content;
   if (typeof text !== "string" || !text.trim()) throw new Error("EMPTY_REPLY");
   const sources = meta
@@ -528,10 +528,43 @@ export async function askAgent(
     throw new Error("MODEL_UNAVAILABLE");
   }
   const body = await response.json();
-  const parsed =
-    config.provider === "claude"
-      ? parseClaudeReply(body)
-      : parseAgentReply(body, config.provider === "meta");
+  let parsed: ReturnType<typeof parseAgentReply>;
+  try {
+    parsed =
+      config.provider === "claude"
+        ? parseClaudeReply(body)
+        : parseAgentReply(body, config.provider === "meta");
+  } catch (error) {
+    if (config.provider === "meta" && discover) {
+      console.warn("Opportunity search returned no final text", {
+        model:
+          metaModelOverride || process.env.META_DISCOVERY_MODEL || config.model,
+        status: body.status,
+        outputTypes: (body.output || []).map(
+          (item: { type: string }) => item.type,
+        ),
+        messagePhases: (body.output || [])
+          .filter((item: { type: string }) => item.type === "message")
+          .map((item: { phase?: string }) => item.phase || "final"),
+      });
+      if (!metaModelOverride) {
+        console.warn(
+          "Meta search returned no final text; retrying with Muse Spark",
+        );
+        return askAgent(
+          preferences,
+          profile,
+          leads,
+          history,
+          resume,
+          discover,
+          config.model,
+          alreadyListed,
+        );
+      }
+    }
+    throw error;
+  }
   if (config.provider === "meta" && discover)
     console.info("Opportunity search response", {
       searched: (body.output || []).some(

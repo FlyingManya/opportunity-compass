@@ -1080,6 +1080,70 @@ test("Meta discovery tries Spark once if Wonder is unavailable", async () => {
   }
 });
 
+test("Meta discovery retries once when web search has no final answer", async () => {
+  const previous = {
+    provider: process.env.AGENT_PROVIDER,
+    key: process.env.MODEL_API_KEY,
+    model: process.env.META_DISCOVERY_MODEL,
+  };
+  const original = globalThis.fetch;
+  process.env.AGENT_PROVIDER = "meta";
+  process.env.MODEL_API_KEY = "test-only";
+  process.env.META_DISCOVERY_MODEL = "muse-wonder-1.0";
+  const models: string[] = [];
+  globalThis.fetch = (async (_url, options) => {
+    const model = JSON.parse(String(options?.body)).model;
+    models.push(model);
+    return Response.json({
+      output:
+        model === "muse-wonder-1.0"
+          ? [
+              {
+                type: "message",
+                phase: "commentary",
+                content: [{ type: "output_text", text: "Searching" }],
+              },
+            ]
+          : [
+              {
+                type: "message",
+                phase: "final",
+                content: [
+                  { type: "output_text", text: '{"opportunities":[]}' },
+                ],
+              },
+            ],
+    });
+  }) as typeof fetch;
+  try {
+    const result = await askAgent(
+      emptyAgentPreferences,
+      emptyProfile,
+      [],
+      [
+        {
+          id: "search",
+          role: "user",
+          content: "Find AI hackathons",
+          createdAt: "2026-11-03T00:00:00Z",
+        },
+      ],
+      null,
+      true,
+    );
+    assert.equal(result?.content, '{"opportunities":[]}');
+    assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
+  } finally {
+    globalThis.fetch = original;
+    if (previous.provider === undefined) delete process.env.AGENT_PROVIDER;
+    else process.env.AGENT_PROVIDER = previous.provider;
+    if (previous.key === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = previous.key;
+    if (previous.model === undefined) delete process.env.META_DISCOVERY_MODEL;
+    else process.env.META_DISCOVERY_MODEL = previous.model;
+  }
+});
+
 test("Meta discovery tries Spark when Wonder web search times out", async () => {
   const previous = {
     provider: process.env.AGENT_PROVIDER,
