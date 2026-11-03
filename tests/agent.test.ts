@@ -482,6 +482,218 @@ test("Muse deadline recheck updates a card and its Interested calendar date", as
   }
 });
 
+test("a manual future deadline updates the card and Interested date for its owner", async () => {
+  const db = memoryDatabase();
+  const sourceUrl = "https://example.org/open-competition";
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl,
+    title: "Open competition",
+    deadline: "",
+  });
+  await db.collection("saved_researched").insertOne({
+    userId: "alice",
+    sourceUrl,
+    title: "Open competition",
+    deadline: "",
+  });
+  const call = (userId: string, deadline: string) =>
+    handleAgent(
+      db,
+      userId,
+      emptyProfile,
+      "agent/discoveries/deadline/manual",
+      "POST",
+      async () => ({ sourceUrl, deadline }),
+    );
+  assert.equal((await call("bob", "2999-12-31")).status, 404);
+  assert.equal((await call("alice", "2999-02-30")).status, 400);
+  const saved = await (await call("alice", "2999-12-31")).json();
+  assert.equal(saved.deadline, "2999-12-31");
+  assert.equal(
+    (
+      await db
+        .collection("discovered_opportunities")
+        .findOne({ userId: "alice", sourceUrl })
+    )?.deadlineOrigin,
+    "manual",
+  );
+  assert.equal(
+    (
+      await db
+        .collection("saved_researched")
+        .findOne({ userId: "alice", sourceUrl })
+    )?.deadline,
+    "2999-12-31",
+  );
+});
+
+test("entering a past deadline removes the opportunity and Interested entry", async () => {
+  const db = memoryDatabase();
+  const sourceUrl = "https://example.org/past-competition";
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl,
+    title: "Past competition",
+    deadline: "",
+  });
+  await db
+    .collection("saved_researched")
+    .insertOne({ userId: "alice", sourceUrl, deadline: "" });
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "bob",
+    sourceUrl,
+    title: "Same source",
+    deadline: "",
+  });
+  const response = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/discoveries/deadline/manual",
+    "POST",
+    async () => ({ sourceUrl, deadline: "2000-01-01" }),
+  );
+  assert.equal((await response.json()).removed, true);
+  assert.equal(
+    await db
+      .collection("discovered_opportunities")
+      .findOne({ userId: "alice", sourceUrl }),
+    null,
+  );
+  assert.equal(
+    await db
+      .collection("saved_researched")
+      .findOne({ userId: "alice", sourceUrl }),
+    null,
+  );
+  assert.ok(
+    await db
+      .collection("discovered_opportunities")
+      .findOne({ userId: "bob", sourceUrl }),
+  );
+});
+
+test("dashboard load automatically prunes expired dated cards and saved entries", async () => {
+  const db = memoryDatabase();
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl: "https://example.org/old",
+    title: "Old",
+    deadline: "2000-01-01",
+  });
+  await db.collection("discovered_opportunities").insertOne({
+    userId: "alice",
+    sourceUrl: "https://example.org/unknown",
+    title: "Unknown",
+    deadline: "",
+  });
+  await db.collection("saved_researched").insertOne({
+    userId: "alice",
+    sourceUrl: "https://example.org/old",
+    deadline: "2000-01-01",
+  });
+  const response = await handleAgent(
+    db,
+    "alice",
+    emptyProfile,
+    "agent/discoveries",
+    "GET",
+    async () => null,
+  );
+  const dashboard = await response.json();
+  assert.equal(
+    dashboard.opportunities.some(
+      (item: { sourceUrl: string }) =>
+        item.sourceUrl === "https://example.org/old",
+    ),
+    false,
+  );
+  assert.equal(
+    await db
+      .collection("discovered_opportunities")
+      .findOne({ userId: "alice", sourceUrl: "https://example.org/old" }),
+    null,
+  );
+  assert.equal(
+    await db
+      .collection("saved_researched")
+      .findOne({ userId: "alice", sourceUrl: "https://example.org/old" }),
+    null,
+  );
+  assert.ok(
+    await db
+      .collection("discovered_opportunities")
+      .findOne({ userId: "alice", sourceUrl: "https://example.org/unknown" }),
+  );
+});
+
+test("a past deadline found by Muse removes the card and Interested entry", async () => {
+  const oldKey = process.env.MODEL_API_KEY;
+  const oldFetch = globalThis.fetch;
+  process.env.MODEL_API_KEY = "test-only";
+  const sourceUrl = "https://event.example.org/old-challenge";
+  globalThis.fetch = (async () =>
+    Response.json({
+      output: [
+        {
+          type: "web_search_call",
+          results: [{ title: "Old challenge", url: sourceUrl }],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: JSON.stringify({
+                deadline: "2000-01-01",
+                evidence: "Applications closed on 1 January 2000.",
+                sourceUrl,
+              }),
+            },
+          ],
+        },
+      ],
+    })) as typeof fetch;
+  try {
+    const db = memoryDatabase();
+    await db.collection("discovered_opportunities").insertOne({
+      userId: "alice",
+      sourceUrl,
+      title: "Old challenge",
+      deadline: "",
+    });
+    await db
+      .collection("saved_researched")
+      .insertOne({ userId: "alice", sourceUrl, deadline: "" });
+    const response = await handleAgent(
+      db,
+      "alice",
+      emptyProfile,
+      "agent/discoveries/deadline",
+      "POST",
+      async () => ({ sourceUrl }),
+    );
+    assert.equal((await response.json()).removed, true);
+    assert.equal(
+      await db
+        .collection("discovered_opportunities")
+        .findOne({ userId: "alice", sourceUrl }),
+      null,
+    );
+    assert.equal(
+      await db
+        .collection("saved_researched")
+        .findOne({ userId: "alice", sourceUrl }),
+      null,
+    );
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = oldKey;
+  }
+});
+
 test("incoming phone share preserves a caption and extracts its link", () => {
   const draft = sharedDraft({
     text: "Medical conference https://www.linkedin.com/posts/example/",

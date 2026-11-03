@@ -7,6 +7,15 @@ export type DeadlineResearch = {
   expired: boolean;
 };
 
+export function validDeadlineDate(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value
+  );
+}
+
 function relatedPage(candidate: string, original: string) {
   const a = new URL(candidate);
   const b = new URL(original);
@@ -34,10 +43,7 @@ export function parseDeadlineResearch(
     return null;
   }
   if (
-    typeof data.deadline !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(data.deadline) ||
-    !Number.isFinite(Date.parse(data.deadline)) ||
-    new Date(data.deadline).toISOString().slice(0, 10) !== data.deadline ||
+    !validDeadlineDate(data.deadline) ||
     typeof data.evidence !== "string" ||
     data.evidence.trim().length < 8 ||
     typeof data.sourceUrl !== "string"

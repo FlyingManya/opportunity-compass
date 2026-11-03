@@ -30,6 +30,7 @@ import { tokenHash } from "./security";
 import { demoOpportunities, type DemoOpportunity } from "./demo-opportunities";
 import { matchedDiscoverySource } from "./discovery-source";
 import { sourceQueue } from "./source-queue";
+import { validDeadlineDate } from "./deadline-research";
 import { parseQuickLookReply, quickLookMetaPrompt } from "./quick-look";
 import {
   sameOpportunity,
@@ -45,6 +46,7 @@ type DiscoveredOpportunity = OpportunityIdentity & {
   requestedRemote?: boolean;
   deadlineEvidence?: string;
   deadlineSourceUrl?: string;
+  deadlineOrigin?: "manual" | "muse";
 };
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -61,6 +63,36 @@ async function allowed(db: Db, userId: string, action: string) {
   return (record?.count || 0) <= 30;
 }
 const statusId = (sourceUrl: string) => tokenHash(sourceUrl);
+
+function todayFor(profile: Profile) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: profile.timezone || "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+async function pruneExpired(db: Db, userId: string, today: string) {
+  const expired = { userId, deadline: { $ne: "", $lt: today } };
+  const [researched, demo] = await Promise.all([
+    db.collection("discovered_opportunities").deleteMany(expired),
+    db.collection("manual_opportunities").deleteMany(expired),
+    db.collection("saved_researched").deleteMany(expired),
+  ]);
+  return (researched.deletedCount || 0) + (demo.deletedCount || 0);
+}
+
+async function removeOpportunity(db: Db, userId: string, sourceUrl: string) {
+  const id = statusId(sourceUrl);
+  await Promise.all([
+    db.collection("discovered_opportunities").deleteOne({ userId, sourceUrl }),
+    db.collection("manual_opportunities").deleteOne({ userId, sourceUrl }),
+    db.collection("saved_researched").deleteOne({ userId, sourceUrl }),
+    db.collection("opportunity_status_images").deleteOne({ userId, id }),
+    db.collection("opportunity_card_images").deleteOne({ userId, id }),
+  ]);
+}
 
 async function statusOpportunity(
   db: Db,
@@ -346,6 +378,7 @@ export async function handleAgent(
     }
   }
   if (path === "agent/interested" && method === "GET") {
+    await pruneExpired(db, userId, todayFor(profile));
     const items = await db
       .collection<ResearchedSaved & { userId: string }>("saved_researched")
       .find({ userId }, { projection: { _id: 0, userId: 0 } })
@@ -369,6 +402,7 @@ export async function handleAgent(
       await savedResearch.deleteOne({ userId, sourceUrl });
       return json({ ok: true });
     }
+    await pruneExpired(db, userId, todayFor(profile));
     const opportunity =
       (await discoveries.findOne({ userId, sourceUrl })) ||
       (await manual.findOne({ userId, sourceUrl }));
@@ -578,6 +612,54 @@ export async function handleAgent(
       );
     }
   }
+  if (path === "agent/discoveries/deadline/manual" && method === "POST") {
+    const body = (await input()) as { sourceUrl?: unknown; deadline?: unknown };
+    const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
+    const sourceUrl = publicLink(rawUrl);
+    if (!sourceUrl)
+      return json({ error: "Choose a card from your dashboard." }, 400);
+    if (!validDeadlineDate(body.deadline))
+      return json({ error: "Enter a valid calendar date." }, 400);
+    const matches = { userId, sourceUrl: { $in: [rawUrl, sourceUrl] } };
+    const researched = await discoveries.findOne(matches);
+    const opportunity = researched || (await manual.findOne(matches));
+    if (!opportunity)
+      return json({ error: "This card is not in your dashboard." }, 404);
+    if (opportunity.deadline)
+      return json({ error: "This card already has a deadline." }, 409);
+    if (body.deadline < todayFor(profile)) {
+      await removeOpportunity(db, userId, opportunity.sourceUrl);
+      return json({
+        removed: true,
+        message:
+          "That deadline has passed, so the opportunity was removed from your dashboard and Interested.",
+      });
+    }
+    const target = researched ? discoveries : manual;
+    const result = await target.updateOne(
+      { userId, sourceUrl: opportunity.sourceUrl, deadline: "" },
+      {
+        $set: {
+          deadline: body.deadline,
+          deadlineOrigin: "manual",
+          deadlineEvidence: "",
+          deadlineSourceUrl: "",
+        },
+      },
+    );
+    if (!result.matchedCount)
+      return json(
+        { error: "This card changed. Refresh the dashboard and try again." },
+        409,
+      );
+    await db
+      .collection<ResearchedSaved & { userId: string }>("saved_researched")
+      .updateOne(
+        { userId, sourceUrl: opportunity.sourceUrl },
+        { $set: { deadline: body.deadline } },
+      );
+    return json({ found: true, deadline: body.deadline, origin: "manual" });
+  }
   if (path === "agent/discoveries/deadline" && method === "POST") {
     const body = (await input()) as { sourceUrl?: unknown };
     const rawUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
@@ -598,12 +680,7 @@ export async function handleAgent(
       });
     if (!(await allowed(db, userId, "deadline-recheck")))
       return json({ error: "Please try again in a little while." }, 429);
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: profile.timezone || "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
+    const today = todayFor(profile);
     try {
       const finding = await findDeadlineWithMuse(
         sourceUrl,
@@ -616,16 +693,18 @@ export async function handleAgent(
           message:
             "Muse Wonder could not confirm an application deadline on this source. You can check the page or try again later.",
         });
-      if (finding.expired)
+      if (finding.expired) {
+        await removeOpportunity(db, userId, opportunity.sourceUrl);
         return json({
-          found: false,
-          expired: true,
-          message: `Muse Wonder found a past deadline (${finding.deadline}). Check the source for a new edition.`,
+          removed: true,
+          message: `Muse Wonder found a past deadline (${finding.deadline}), so this opportunity was removed.`,
         });
+      }
       const update = {
         deadline: finding.deadline,
         deadlineEvidence: finding.evidence,
         deadlineSourceUrl: finding.sourceUrl,
+        deadlineOrigin: "muse" as const,
       };
       const target = researched ? discoveries : manual;
       const result = await target.updateOne(
@@ -706,19 +785,7 @@ export async function handleAgent(
     }
   }
   if (path === "agent/discoveries/refresh" && method === "POST") {
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: profile.timezone || "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-    const [researched, demo] = await Promise.all([
-      discoveries.deleteMany({ userId, deadline: { $ne: "", $lt: today } }),
-      manual.deleteMany({ userId, deadline: { $ne: "", $lt: today } }),
-    ]);
-    return json({
-      removed: (researched.deletedCount || 0) + (demo.deletedCount || 0),
-    });
+    return json({ removed: await pruneExpired(db, userId, todayFor(profile)) });
   }
   if (path === "agent/discoveries" && method === "DELETE") {
     const body = (await input()) as { sourceUrl?: string };
@@ -733,12 +800,8 @@ export async function handleAgent(
     return json({ removed: removed.deletedCount || 0 });
   }
   if (path === "agent/discoveries" && method === "GET") {
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: profile.timezone || "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
+    const today = todayFor(profile);
+    await pruneExpired(db, userId, today);
     const [rows, unverifiedRows, manualRows] = await Promise.all([
       discoveries
         .find(

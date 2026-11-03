@@ -23,6 +23,7 @@ type Discovery = {
   deadline: string;
   deadlineEvidence?: string;
   deadlineSourceUrl?: string;
+  deadlineOrigin?: "manual" | "muse";
   reason: string;
   status?: string;
   provenance?: "curated" | "demo";
@@ -169,6 +170,7 @@ export default function DiscoveryFeed({
   savingSourceUrl = "",
   onToggleInterested,
   onDeadlineFound,
+  onOpportunityRemoved,
   onCountChange,
 }: {
   openStatusSignal?: number;
@@ -176,6 +178,7 @@ export default function DiscoveryFeed({
   savingSourceUrl?: string;
   onToggleInterested?: (item: Discovery) => void;
   onDeadlineFound?: (sourceUrl: string, deadline: string) => void;
+  onOpportunityRemoved?: (sourceUrl: string) => void;
   onCountChange?: (count: number) => void;
 }) {
   const [items, setItems] = useState<Discovery[]>([]);
@@ -200,6 +203,9 @@ export default function DiscoveryFeed({
     Record<string, string>
   >({});
   const [deadlineAttempted, setDeadlineAttempted] = useState<string[]>([]);
+  const [manualDateUrl, setManualDateUrl] = useState("");
+  const [manualDateValue, setManualDateValue] = useState("");
+  const [manualBusyUrl, setManualBusyUrl] = useState("");
   useEffect(() => {
     if (!loading) onCountChange?.(items.length);
   }, [items.length, loading, onCountChange]);
@@ -230,6 +236,121 @@ export default function DiscoveryFeed({
       setDetailBusy(false);
     }
   }
+  function removeExpiredLocally(item: Discovery, message: string) {
+    setItems((previous) =>
+      previous.filter((entry) => entry.sourceUrl !== item.sourceUrl),
+    );
+    setSelected((previous) =>
+      previous?.sourceUrl === item.sourceUrl ? null : previous,
+    );
+    setStatusNotice(message);
+    onOpportunityRemoved?.(item.sourceUrl);
+  }
+  function applyDeadline(
+    item: Discovery,
+    deadline: string,
+    origin: "manual" | "muse",
+    evidence = "",
+    sourceUrl = "",
+  ) {
+    const dateUpdate = {
+      deadline,
+      deadlineOrigin: origin,
+      deadlineEvidence: evidence,
+      deadlineSourceUrl: sourceUrl,
+    };
+    setItems((previous) =>
+      previous.map((entry) =>
+        entry.sourceUrl === item.sourceUrl
+          ? { ...entry, ...dateUpdate }
+          : entry,
+      ),
+    );
+    setSelected((previous) =>
+      previous?.sourceUrl === item.sourceUrl
+        ? { ...previous, ...dateUpdate }
+        : previous,
+    );
+    onDeadlineFound?.(item.sourceUrl, deadline);
+    setManualDateUrl("");
+    setManualDateValue("");
+  }
+  async function saveManualDeadline(item: Discovery) {
+    if (!manualDateValue || manualBusyUrl) return;
+    setManualBusyUrl(item.sourceUrl);
+    setDeadlineMessages((previous) => ({ ...previous, [item.sourceUrl]: "" }));
+    try {
+      const response = await fetch("/api/agent/discoveries/deadline/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceUrl: item.sourceUrl,
+          deadline: manualDateValue,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok)
+        throw new Error(body.error || "Could not save this date.");
+      if (body.removed) removeExpiredLocally(item, body.message);
+      else if (body.deadline) {
+        applyDeadline(item, body.deadline, "manual");
+        setDeadlineMessages((previous) => ({
+          ...previous,
+          [item.sourceUrl]:
+            "Your date was saved. Check the official source before relying on it.",
+        }));
+      }
+    } catch (error) {
+      setDeadlineMessages((previous) => ({
+        ...previous,
+        [item.sourceUrl]:
+          error instanceof Error ? error.message : "Could not save this date.",
+      }));
+    } finally {
+      setManualBusyUrl("");
+    }
+  }
+  function manualDateControls(item: Discovery) {
+    return (
+      <>
+        <button
+          type="button"
+          className="discovery-enter-deadline"
+          onClick={() => {
+            setManualDateUrl((previous) =>
+              previous === item.sourceUrl ? "" : item.sourceUrl,
+            );
+            setManualDateValue("");
+          }}
+        >
+          Enter date manually
+        </button>
+        {manualDateUrl === item.sourceUrl && (
+          <form
+            className="discovery-manual-date-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveManualDeadline(item);
+            }}
+          >
+            <input
+              type="date"
+              required
+              aria-label={`Application deadline for ${item.title}`}
+              value={manualDateValue}
+              onChange={(event) => setManualDateValue(event.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={!manualDateValue || !!manualBusyUrl}
+            >
+              {manualBusyUrl === item.sourceUrl ? "Saving…" : "Save date"}
+            </button>
+          </form>
+        )}
+      </>
+    );
+  }
   async function findDeadline(item: Discovery) {
     if (deadlineBusyUrl) return;
     setDeadlineBusyUrl(item.sourceUrl);
@@ -249,25 +370,15 @@ export default function DiscoveryFeed({
       const body = await response.json();
       if (!response.ok)
         throw new Error(body.error || "Muse Wonder could not check this date.");
-      if (body.found && body.deadline) {
-        const dateUpdate = {
-          deadline: body.deadline,
-          deadlineEvidence: body.evidence,
-          deadlineSourceUrl: body.sourceUrl,
-        };
-        setItems((previous) =>
-          previous.map((entry) =>
-            entry.sourceUrl === item.sourceUrl
-              ? { ...entry, ...dateUpdate }
-              : entry,
-          ),
+      if (body.removed) removeExpiredLocally(item, body.message);
+      else if (body.found && body.deadline) {
+        applyDeadline(
+          item,
+          body.deadline,
+          "muse",
+          body.evidence,
+          body.sourceUrl,
         );
-        setSelected((previous) =>
-          previous?.sourceUrl === item.sourceUrl
-            ? { ...previous, ...dateUpdate }
-            : previous,
-        );
-        onDeadlineFound?.(item.sourceUrl, body.deadline);
         setDeadlineMessages((previous) => ({
           ...previous,
           [item.sourceUrl]:
@@ -356,9 +467,11 @@ export default function DiscoveryFeed({
     }
     refresh();
     window.addEventListener("focus", refresh);
+    const interval = window.setInterval(refresh, 15 * 60 * 1000);
     return () => {
       active = false;
       window.removeEventListener("focus", refresh);
+      window.clearInterval(interval);
     };
   }, []);
   const statuses = items.filter((item) => item.statusReady);
@@ -517,7 +630,11 @@ export default function DiscoveryFeed({
                 key={item.sourceUrl}
                 className="op-card discovery-feed-card"
                 onClick={(event) => {
-                  if (!(event.target as HTMLElement).closest("button,a"))
+                  if (
+                    !(event.target as HTMLElement).closest(
+                      "button,a,input,form,label",
+                    )
+                  )
                     openDetail(item);
                 }}
               >
@@ -635,6 +752,12 @@ export default function DiscoveryFeed({
                               : "Find with Muse AI"}
                         </button>
                       )}
+                      {!item.deadline && manualDateControls(item)}
+                      {item.deadlineOrigin === "manual" && (
+                        <small className="discovery-deadline-feedback">
+                          Date entered by you · check the source
+                        </small>
+                      )}
                       {deadlineMessages[item.sourceUrl] && (
                         <small
                           className="discovery-deadline-feedback"
@@ -712,6 +835,11 @@ export default function DiscoveryFeed({
                     <ArrowUpRight size={13} />
                   </a>
                 )}
+                {selected.deadlineOrigin === "manual" && (
+                  <small className="discovery-deadline-feedback">
+                    Date entered by you. Confirm it on the original page.
+                  </small>
+                )}
                 {!selected.deadline && (
                   <button
                     type="button"
@@ -727,6 +855,7 @@ export default function DiscoveryFeed({
                         : "Find with Muse AI"}
                   </button>
                 )}
+                {!selected.deadline && manualDateControls(selected)}
                 {deadlineMessages[selected.sourceUrl] && (
                   <small className="discovery-deadline-feedback" role="status">
                     {deadlineMessages[selected.sourceUrl]}

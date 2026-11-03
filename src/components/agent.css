@@ -810,6 +810,51 @@
   opacity: 0.65;
   cursor: wait;
 }
+.discovery-enter-deadline {
+  display: inline-flex;
+  align-items: center;
+  color: #7150a0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 4px 2px !important;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.discovery-manual-date-form {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.discovery-manual-date-form input {
+  min-height: 32px;
+  min-width: 135px;
+  max-width: 100%;
+  padding: 4px 7px;
+  border: 1px solid #d9c9ed;
+  border-radius: 7px;
+  color: #493653;
+  background: #fff;
+  font: inherit;
+}
+.discovery-manual-date-form button {
+  min-height: 32px;
+  border: 0 !important;
+  border-radius: 7px;
+  padding: 5px 9px !important;
+  background: #7956a6 !important;
+  color: #fff !important;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.discovery-manual-date-form button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
 .discovery-deadline-feedback {
   flex-basis: 100%;
   color: #6b587d;
@@ -820,6 +865,11 @@
   grid-column: 2;
   justify-self: start;
   margin-top: 5px;
+}
+.discovery-detail-facts .discovery-enter-deadline,
+.discovery-detail-facts .discovery-manual-date-form {
+  grid-column: 2;
+  justify-self: start;
 }
 .discovery-detail-facts .discovery-deadline-feedback {
   grid-column: 2;

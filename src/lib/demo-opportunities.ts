@@ -8,6 +8,7 @@ export type DemoOpportunity = {
   deadline: string;
   deadlineEvidence?: string;
   deadlineSourceUrl?: string;
+  deadlineOrigin?: "manual" | "muse";
   eventDate?: string;
   reason: string;
   provenance: "demo";

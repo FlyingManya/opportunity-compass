@@ -231,6 +231,24 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     return () => clearTimeout(id);
   }, [toast]);
   useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    const refreshInterested = () => {
+      api("agent/interested")
+        .then((result) => {
+          if (active) setResearchedSaved(result.items);
+        })
+        .catch(() => {});
+    };
+    const interval = window.setInterval(refreshInterested, 15 * 60 * 1000);
+    window.addEventListener("focus", refreshInterested);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshInterested);
+    };
+  }, [user?.id]);
+  useEffect(() => {
     if (!modalOpen) return;
     const previous = document.activeElement as HTMLElement | null;
     const old = document.body.style.overflow;
@@ -1147,6 +1165,11 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                         ? { ...entry, deadline }
                         : entry,
                     ),
+                  )
+                }
+                onOpportunityRemoved={(sourceUrl) =>
+                  setResearchedSaved((previous) =>
+                    previous.filter((entry) => entry.sourceUrl !== sourceUrl),
                   )
                 }
                 savedSourceUrls={researchedSaved.map(
