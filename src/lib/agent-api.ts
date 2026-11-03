@@ -792,14 +792,17 @@ export async function handleAgent(
       }).format(new Date());
       const preferences = (settings?.preferences ||
         emptyAgentPreferences) as AgentPreferences;
+      const curated = discover
+        ? curatedForUser(
+            preferences,
+            conversation,
+            imports as unknown as SharedLead[],
+            today,
+          )
+        : [];
       const known: OpportunityIdentity[] = discover
         ? [
-            ...curatedForUser(
-              preferences,
-              conversation,
-              imports as unknown as SharedLead[],
-              today,
-            ),
+            ...curated,
             ...(await manual.find({ userId }).toArray()),
             ...(await discoveries.find({ userId }).toArray()),
           ]
@@ -914,7 +917,9 @@ export async function handleAgent(
             ? `I added ${added} opportunity${added === 1 ? "" : "ies"} matching your request to your Discover dashboard. Please check each official page before applying.`
             : alreadyListed
               ? "I found an opportunity matching your request, but it is already on your Discover dashboard. Please check the official page before applying."
-              : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
+              : curated.length
+                ? `I couldn't verify any new cards in this search. There are ${curated.length} current, official-source opportunities on your Discover dashboard. Please check each event's page and eligibility before applying.`
+                : "This search didn't produce a card with a verified official source and future deadline. That doesn't mean there are no relevant events. Try a named organizer or a broader category, and check any promising leads on the official site.",
           createdAt: new Date().toISOString(),
           sources: [],
         };

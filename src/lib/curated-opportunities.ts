@@ -28,6 +28,39 @@ const opportunities: CuratedOpportunity[] = [
 ];
 const aiHackathons: CuratedOpportunity[] = [
   {
+    sourceUrl: "https://ugreenhackathon.devpost.com/",
+    title: "UGREEN Hackathon 2026 on AI NAS",
+    organizer: "UGREEN · Devpost",
+    description:
+      "An online challenge to build an AI Skill for UGREEN AI NAS. Round 1 submissions close 15 November 2026 at 11:45 PM Pacific Time. A NAS is not needed for round 1; check the official rules for country and age eligibility.",
+    deadline: "2026-11-15",
+    reason:
+      "A current online AI development challenge with a first round open to eligible individual developers.",
+    provenance: "curated",
+  },
+  {
+    sourceUrl: "https://firebasehybridaihackathon.devpost.com/",
+    title: "#BuildHybridAI 2026",
+    organizer: "Firebase AI Logic · Devpost",
+    description:
+      "An online challenge to build AI apps that run on-device and in the cloud. Registration is open; submissions run 9–30 November 2026 and close at 2:00 PM Pacific Time on 30 November. Full rules are scheduled for release on 9 November.",
+    deadline: "2026-11-30",
+    reason:
+      "A current online AI app-building challenge. Check the full rules when published before submitting.",
+    provenance: "curated",
+  },
+  {
+    sourceUrl: "https://codegeist2026.devpost.com/",
+    title: "Codegeist 2026",
+    organizer: "Atlassian · Devpost",
+    description:
+      "Atlassian's online hackathon to build an app on Forge that extends an Atlassian product. Submissions close 22 December 2026 at 12:00 PM Pacific Time. Adults in eligible countries can enter; review the official rules for exclusions.",
+    deadline: "2026-12-22",
+    reason:
+      "An open developer challenge with an AI theme and a longer submission window.",
+    provenance: "curated",
+  },
+  {
     sourceUrl: "https://paypalaihackathon.devpost.com/",
     title: "PayPal AI Hackathon",
     organizer: "PayPal · Devpost",

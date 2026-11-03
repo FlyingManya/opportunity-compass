@@ -749,14 +749,19 @@ test("current curated lead appears only for interested accounts and expires", as
       [],
       "2026-11-02",
     ).map((item) => item.title),
-    ["PayPal AI Hackathon"],
+    [
+      "UGREEN Hackathon 2026 on AI NAS",
+      "#BuildHybridAI 2026",
+      "Codegeist 2026",
+      "PayPal AI Hackathon",
+    ],
   );
   assert.equal(
     curatedForUser(
       { ...emptyAgentPreferences, brief: "AI hackathons" },
       [],
       [],
-      "2026-11-13",
+      "2026-12-23",
     ).length,
     0,
   );
