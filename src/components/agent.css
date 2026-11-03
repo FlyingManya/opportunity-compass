@@ -737,6 +737,34 @@
   opacity: 0.6;
   cursor: wait;
 }
+.discovery-title-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.discovery-title-button:hover { text-decoration: underline; }
+.discovery-detail-panel {
+  width: min(660px, 100%);
+  max-height: min(760px, 90vh);
+  overflow: auto;
+  position: relative;
+  border-radius: 24px;
+  background: #fff;
+  padding: 36px;
+  color: #292436;
+}
+.discovery-detail-panel h2 { margin: 10px 0; }
+.discovery-detail-panel .generated-status-close {
+  color: #5b5068;
+  background: #f3eef9;
+  border-radius: 50%;
+}
+.discovery-detail-copy { white-space: pre-wrap; line-height: 1.65; margin: 22px 0; }
+.discovery-detail-panel > a { display: inline-flex; align-items: center; gap: 6px; color: #775aba; }
 .status-helper {
   max-width: 700px;
 }

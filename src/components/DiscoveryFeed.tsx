@@ -143,32 +143,50 @@ export default function DiscoveryFeed({
   const [statusIndex, setStatusIndex] = useState<number | null>(null);
   const [statusError, setStatusError] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
-  const [demoBusy, setDemoBusy] = useState(false);
-  async function addDemoCards() {
-    if (demoBusy) return;
-    setDemoBusy(true);
+  const [selected, setSelected] = useState<Discovery | null>(null);
+  const [detail, setDetail] = useState("");
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  async function openDetail(item: Discovery) {
+    setSelected(item);
+    setDetail("");
+    setDetailError("");
+    setDetailBusy(true);
+    try {
+      const response = await fetch("/api/agent/discoveries/detail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: item.sourceUrl }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Details are unavailable.");
+      setDetail(body.content || "No details were returned.");
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "Details are unavailable.");
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+  async function refreshCards() {
+    if (refreshing) return;
+    setRefreshing(true);
     setStatusError("");
     try {
-      const response = await fetch("/api/agent/demo-seed", { method: "POST" });
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Could not add demo cards.");
-      const refreshed = await fetch("/api/agent/discoveries", {
-        cache: "no-store",
-      });
-      const body = await refreshed.json();
-      if (!refreshed.ok)
-        throw new Error(body.error || "Could not reload cards.");
-      setItems(Array.isArray(body.opportunities) ? body.opportunities : []);
-      setStatusNotice(
-        "Four manually selected demo cards and template Stories are ready.",
-      );
+      const response = await fetch("/api/agent/discoveries/refresh", { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Could not refresh cards.");
+      const latest = await fetch("/api/agent/discoveries", { cache: "no-store" });
+      const dashboard = await latest.json();
+      if (!latest.ok) throw new Error(dashboard.error || "Could not load cards.");
+      setItems(Array.isArray(dashboard.opportunities) ? dashboard.opportunities : []);
+      setStatusNotice(body.removed
+        ? `Removed ${body.removed} opportunit${body.removed === 1 ? "y" : "ies"} with passed deadlines.`
+        : "Dashboard is up to date.");
     } catch (error) {
-      setStatusError(
-        error instanceof Error ? error.message : "Could not add demo cards.",
-      );
+      setStatusError(error instanceof Error ? error.message : "Could not refresh cards.");
     } finally {
-      setDemoBusy(false);
+      setRefreshing(false);
     }
   }
   useEffect(() => {
@@ -298,6 +316,9 @@ export default function DiscoveryFeed({
         <h2>Researched for you</h2>
         {!!items.length && (
           <div className="discovery-status-actions">
+            <button type="button" className="secondary" onClick={refreshCards} disabled={refreshing}>
+              {refreshing ? "Refreshing…" : "Refresh dashboard"}
+            </button>
             <button
               type="button"
               className="secondary"
@@ -320,16 +341,6 @@ export default function DiscoveryFeed({
         Ask your companion to find opportunities. Open each official page to
         confirm details before applying.
       </p>
-      {!loading && !items.some((item) => item.provenance === "demo") && (
-        <button
-          type="button"
-          className="text-button"
-          onClick={addDemoCards}
-          disabled={demoBusy}
-        >
-          {demoBusy ? "Adding demo examples…" : "Add demo examples"}
-        </button>
-      )}
       {statusError && (
         <p className="status-error" role="alert">
           {statusError}
@@ -351,17 +362,19 @@ export default function DiscoveryFeed({
               <article
                 key={item.sourceUrl}
                 className="op-card discovery-feed-card"
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest("button,a")) openDetail(item);
+                }}
               >
                 <div className="card-art-wrap">
-                  <a
+                  <button
+                    type="button"
                     className="art-open"
-                    href={item.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Open official page for ${item.title}`}
+                    onClick={() => openDetail(item)}
+                    aria-label={`View details for ${item.title}`}
                   >
                     <OpportunityCardArt item={item} color={appearance.color} />
-                  </a>
+                  </button>
                   <span className="art-badge">
                     {item.provenance === "demo"
                       ? "DEMO · MANUALLY ADDED"
@@ -411,13 +424,9 @@ export default function DiscoveryFeed({
                     </span>
                   </div>
                   <h3>
-                    <a
-                      href={item.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <button type="button" className="discovery-title-button" onClick={() => openDetail(item)}>
                       {item.title}
-                    </a>
+                    </button>
                   </h3>
                   <p className="organizer">{item.organizer}</p>
                   <p className="discovery-card-description">
@@ -430,9 +439,7 @@ export default function DiscoveryFeed({
                         ? `Apply by ${formatDeadline(item.deadline)}`
                         : item.eventDate
                           ? `Event on ${formatDeadline(item.eventDate)}`
-                          : item.status?.startsWith("Search lead")
-                            ? "Check deadline on official page"
-                            : "No deadline published"}
+                          : "Deadline not mentioned"}
                     </span>
                     <a
                       href={item.sourceUrl}
@@ -450,6 +457,21 @@ export default function DiscoveryFeed({
               </article>
             );
           })}
+        </div>
+      )}
+      {selected && (
+        <div className="generated-status-overlay" role="dialog" aria-modal="true" aria-label={`Details for ${selected.title}`}>
+          <div className="discovery-detail-panel">
+            <button type="button" className="generated-status-close" aria-label="Close details" onClick={() => setSelected(null)}><X size={22} /></button>
+            <p className="sample-label">Opportunity details</p>
+            <h2>{selected.title}</h2>
+            <p>{selected.organizer}</p>
+            <p>{selected.deadline ? `Deadline: ${formatDeadline(selected.deadline)}` : "Deadline: Not mentioned"}</p>
+            {detailBusy && <p role="status">Muse Wonder is checking this opportunity…</p>}
+            {detailError && <p role="alert">{detailError}</p>}
+            {detail && <div className="discovery-detail-copy">{detail}</div>}
+            <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">Open original page <ArrowUpRight size={16} /></a>
+          </div>
         </div>
       )}
       {currentStatus && (
