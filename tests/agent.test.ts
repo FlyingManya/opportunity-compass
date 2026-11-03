@@ -372,6 +372,26 @@ test("model adapters parse text and accept only safe cited links", () => {
     "An open-model reply",
   );
   assert.throws(() => parseAgentReply({ choices: [] }, false));
+  const sourceOnly = parseAgentReply(
+    {
+      status: "incomplete",
+      output: [
+        {
+          type: "web_search_call",
+          results: [
+            {
+              title: "New AI Hackathon 2026 - Devpost",
+              url: "https://new-ai-2026.devpost.com/",
+            },
+          ],
+        },
+      ],
+    },
+    true,
+    true,
+  );
+  assert.equal(sourceOnly.content, '{"opportunities":[]}');
+  assert.equal(sourceOnly.sources.length, 1);
 });
 
 // A test double only: the application has no local persistence fallback.
@@ -1052,7 +1072,7 @@ test("model requests select the configured transport and do not expose keys in s
       listed,
     );
     assert.ok(calls[7].body.input.includes("PayPal AI Hackathon"));
-    assert.ok(calls[7].body.input.includes("four DIFFERENT opportunities"));
+    assert.ok(calls[7].body.input.includes("four DIFFERENT opportunity links"));
     await askAgent(
       emptyAgentPreferences,
       emptyProfile,

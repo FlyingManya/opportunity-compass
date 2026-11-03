@@ -847,6 +847,7 @@ export async function handleAgent(
           ? parsed.opportunities.slice(0, 4)
           : [];
         let added = 0;
+        let leadsAdded = 0;
         let alreadyListed = 0;
         const skipped = { fields: 0, deadline: 0, source: 0 };
         for (const item of items) {
@@ -861,12 +862,14 @@ export async function handleAgent(
             skipped.fields++;
             continue;
           }
+          const unverified = item.deadline === "";
           if (
-            !/^\d{4}-\d{2}-\d{2}$/.test(item.deadline) ||
-            !Number.isFinite(Date.parse(item.deadline)) ||
-            new Date(item.deadline).toISOString().slice(0, 10) !==
-              item.deadline ||
-            item.deadline < today
+            !unverified &&
+            (!/^\d{4}-\d{2}-\d{2}$/.test(item.deadline) ||
+              !Number.isFinite(Date.parse(item.deadline)) ||
+              new Date(item.deadline).toISOString().slice(0, 10) !==
+                item.deadline ||
+              item.deadline < today)
           ) {
             skipped.deadline++;
             continue;
@@ -891,7 +894,7 @@ export async function handleAgent(
           const existing = known.find((entry) =>
             sameOpportunity(entry, candidate),
           );
-          if (existing?.deadline) {
+          if (existing && (existing.deadline || unverified)) {
             alreadyListed++;
             continue;
           }
@@ -907,22 +910,24 @@ export async function handleAgent(
                 deadline: item.deadline,
                 reason: item.reason.slice(0, 300),
                 discoveredAt: new Date().toISOString(),
-                status: "AI-researched; confirm on official page",
+                status: unverified
+                  ? "Search lead; deadline and eligibility unverified"
+                  : "AI-researched; confirm on official page",
               },
             },
             { upsert: true },
           );
           known.push(candidate);
-          added++;
+          if (unverified) leadsAdded++;
+          else added++;
         }
-        let leadsAdded = 0;
-        if (added < 4) {
+        if (added + leadsAdded < 4) {
           const sourceLeads = hackathonLeadsFromSources(
             result.sources,
             message,
             known,
             today,
-          ).slice(0, 4 - added);
+          ).slice(0, 4 - added - leadsAdded);
           for (const lead of sourceLeads) {
             await discoveries.updateOne(
               { userId, sourceUrl: lead.sourceUrl },
