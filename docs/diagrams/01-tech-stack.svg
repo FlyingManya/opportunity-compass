@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="How the app fits together">
+    <defs>
+      <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f9f6ff"/><stop offset=".56" stop-color="#fffaf6"/><stop offset="1" stop-color="#f5fbff"/></linearGradient>
+      <linearGradient id="top" x2="1" y2="0"><stop stop-color="#7f62c4"/><stop offset="1" stop-color="#f2a984"/></linearGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="13" flood-color="#5b4c84" flood-opacity=".10"/></filter>
+      <marker id="arrow" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto"><path d="M1,1 L11,6.5 L1,12" fill="none" stroke="#7556bf" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    </defs>
+    <rect width="1600" height="900" fill="url(#bg)"/>
+    <circle cx="1510" cy="52" r="200" fill="#f1e8ff" opacity=".72"/>
+    <circle cx="54" cy="844" r="194" fill="#ffeadd" opacity=".55"/>
+    <rect x="0" y="0" width="1600" height="12" fill="url(#top)"/>
+    <rect x="72" y="42" width="205" height="36" rx="18" fill="#ece5fb"/><text x="174.5" y="67" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" fill="#7556bf">OPPORTUNITY COMPASS</text>
+    <text x="72" y="138" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="52" font-weight="800" fill="#25213b">How the app fits together</text>
+    <text x="73" y="180" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="500" fill="#6c6683">React interface, Vercel server, MongoDB Atlas, and Meta Model API</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="72" y="228" width="360" height="174" rx="28" fill="#ffffff" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="96" y="251" width="9" height="128" rx="5" fill="#7556bf"/>
+    <text x="128" y="281" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#7556bf">SOURCE</text>
+    <g transform="translate(348,247)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#7556bf" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="25" cy="11" r="5"/><circle cx="10" cy="39" r="5"/><circle cx="40" cy="39" r="5"/><path d="M25 16v10m0 0L10 34m15-8 15 8"/></g></g>
+    <text x="128" y="329" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">GitHub repository</text>
+    <text x="128" y="370" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Next.js, React, TypeScript</text><text x="128" y="399" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">and shared UI components</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="545" y="228" width="510" height="174" rx="28" fill="#ede6ff" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="569" y="251" width="9" height="128" rx="5" fill="#7556bf"/>
+    <text x="601" y="281" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#7556bf">DEPLOY + RUN</text>
+    <g transform="translate(971,247)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#7556bf" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 42 25 10l18 32Z"/></g></g>
+    <text x="601" y="329" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">Vercel</text>
+    <text x="601" y="370" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Next.js app + server API routes</text><text x="601" y="399" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Authentication and validation run here</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="1168" y="228" width="360" height="174" rx="28" fill="#ffffff" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="1192" y="251" width="9" height="128" rx="5" fill="#7556bf"/>
+    <text x="1224" y="281" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#7556bf">USER INTERFACE</text>
+    <g transform="translate(1444,247)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#7556bf" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="8" width="38" height="33" rx="5"/><path d="M6 18h38M12 13h2m6 0h2m-9 13h13m-13 7h19"/></g></g>
+    <text x="1224" y="329" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">Browser / phone</text>
+    <text x="1224" y="370" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Dashboard, chat, stories,</text><text x="1224" y="399" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">interested list, calendar</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="72" y="535" width="447" height="214" rx="28" fill="#e5f4e9" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="96" y="558" width="9" height="168" rx="5" fill="#429267"/>
+    <text x="128" y="588" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#429267">DATA</text>
+    <g transform="translate(435,554)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#429267" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="25" cy="12" rx="16" ry="6"/><path d="M9 12v27c0 8 32 8 32 0V12 M9 25c0 8 32 8 32 0"/></g></g>
+    <text x="128" y="636" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">MongoDB Atlas</text>
+    <text x="128" y="677" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Accounts + sessions</text><text x="128" y="706" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Profile, keywords, opportunities</text><text x="128" y="735" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Saved dates and generated artwork</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="575" y="535" width="450" height="214" rx="28" fill="#fff1cc" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="599" y="558" width="9" height="168" rx="5" fill="#b47731"/>
+    <text x="631" y="588" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#b47731">PRIVATE CONFIG</text>
+    <g transform="translate(941,554)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#b47731" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="25" cy="22" r="10"/><path d="M25 32v13m0-8h10m-10 5h7"/></g></g>
+    <text x="631" y="636" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">Vercel environment</text>
+    <text x="631" y="677" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">MONGODB_URI + MODEL_API_KEY</text><text x="631" y="706" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">AGENT_PROVIDER and model IDs</text><text x="631" y="735" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Available to server code only</text>
+    
+    
+    <g filter="url(#shadow)"><rect x="1081" y="535" width="447" height="214" rx="28" fill="#ffe6d6" stroke="#ded8eb" stroke-width="2"/></g>
+    <rect x="1105" y="558" width="9" height="168" rx="5" fill="#c16b54"/>
+    <text x="1137" y="588" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#c16b54">MODEL API</text>
+    <g transform="translate(1444,554)"><circle cx="25" cy="25" r="26" fill="#ffffff" opacity=".72"/><g fill="none" stroke="#c16b54" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m25 4 4 16 16 5-16 4-4 16-5-16-16-4 16-5Z"/></g></g>
+    <text x="1137" y="636" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="750" fill="#25213b">Meta models</text>
+    <text x="1137" y="677" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Muse Spark 1.3  •  chat</text><text x="1137" y="706" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Muse Wonder 1.0  •  research</text><text x="1137" y="735" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#6c6683">Muse Image 1.0  •  artwork</text>
+    
+    <path d="M438,315 L533,315" fill="none" stroke="#7556bf" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/><path d="M1061,315 L1156,315" fill="none" stroke="#7556bf" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/><path d="M705,412 C535,412 650,523 480,523" fill="none" stroke="#7556bf" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/><path d="M800,523 L800,412" fill="none" stroke="#7556bf" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/><path d="M935,412 C1065,412 980,523 1110,523" fill="none" stroke="#7556bf" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+    <text x="800" y="807" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="700" fill="#7556bf">The browser never receives the database URI or Meta API key.</text>
+
+    <rect x="72" y="847" width="1456" height="1.5" fill="#ded8e9"/>
+    <text x="72" y="878" text-anchor="start" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#6c6683">SYSTEM DIAGRAM  /  README</text>
+    <text x="1528" y="878" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#6c6683">01 / 04</text>
+    </svg>
