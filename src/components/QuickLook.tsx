@@ -71,6 +71,9 @@ export default function QuickLook({
     };
   }, [signature, refresh]);
   const palette = ["lilac", "peach", "mint", "butter", "lilac", "peach"];
+  const needsProfile =
+    reason.startsWith("Save your profile") ||
+    reason.startsWith("Add interests");
   return (
     <section className="stories-strip" aria-label="Personalized quick look">
       <div>
@@ -84,7 +87,7 @@ export default function QuickLook({
               ? "Meta is choosing ideas from your saved interests…"
               : unavailable
                 ? reason || "Meta could not create ideas right now."
-                : "Add interests to your profile and enable Meta sharing in Chat & links to see personal ideas."}
+                : "Add interests to your profile to see personal ideas."}
           </p>
         )}
         {topics.map((item, index) => (
@@ -102,11 +105,7 @@ export default function QuickLook({
           </button>
         ))}
       </div>
-      {unavailable &&
-      reason !==
-        "Turn on saved-context sharing in Chat & links to create personal ideas." &&
-      reason !==
-        "Add interests to your profile or a search brief, then choose what to share with Meta AI." ? (
+      {unavailable && !needsProfile ? (
         <button
           type="button"
           className="secondary"

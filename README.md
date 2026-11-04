@@ -11,7 +11,7 @@ The app is a responsive **Next.js, React, and TypeScript** project deployed on *
 ## What a user can do
 
 1. **Create an account** and enter interests, skills, experience, location, and an optional PDF or text résumé.
-2. **Write a search brief** with goals and preferred websites. Profile and résumé sharing with Meta are separate choices.
+2. **Write a search brief** with goals and preferred websites. A saved profile is used for Meta matching; résumé sharing is a separate option beside the upload.
 3. **Ask in chat** for something specific, such as “remote AI hackathons” or “essay-writing competitions in tech.” A discovery request can add researched cards to the dashboard.
 4. **Explore a card** for its source, a more detailed Muse Wonder research attempt, and a deadline recheck when the date was not published initially.
 5. **Mark Interested.** A card can be saved without a deadline; a known application deadline also appears in the in-app calendar and can be exported as an `.ics` file.
@@ -37,7 +37,7 @@ The browser calls the app's server routes. **The Meta models do not connect to M
 
 ![Discovery flow from user context through Muse Wonder web search, structured candidates, server validation, MongoDB, and reusable cards](docs/diagrams/02-discovery-flow.png)
 
-For a discovery request, the server combines the user's latest question with the **current date in their chosen timezone** and the context they have opted to share. That context can include their profile, search brief, preferred source sites, recent conversation, saved leads, and separately authorized résumé. A user's latest request and saved brief define the target; older chat topics are not treated as permanent interests.
+For a discovery request, the server combines the user's latest question with the **current date in their chosen timezone** and saved account context. A completed profile, search brief, preferred source sites, recent conversation, and saved leads inform matching; the résumé is included only when separately enabled. A user's latest request and saved brief define the target; older chat topics are not treated as permanent interests.
 
 When `META_DISCOVERY_MODEL=muse-wonder-1.0` is configured, the request asks **Muse Wonder** to use Meta's `web_search` tool. Each request limits web-search calls to six and asks for up to eight structured candidates with a title, organizer, description, source URL, reason for relevance, and a `YYYY-MM-DD` application deadline or an empty value if the date is unknown. If the model stops before producing a final summary, cited search results can still become unverified leads. The server then:
 
@@ -47,7 +47,7 @@ When `META_DISCOVERY_MODEL=muse-wonder-1.0` is configured, the request asks **Mu
 - retains useful undated leads but labels their date and eligibility as unverified; and
 - keeps the researched collection capped at 20 records per user, then renders the current dashboard through one card template.
 
-**Keyword cache detail:** during discovery, the app may ask Muse Spark to extract search phrases from consented profile information and stores them in `profile_keywords`. The cache is refreshed when its profile/brief signature changes. It currently helps select additional leads from search sources; Muse Wonder receives the consented profile and brief directly. Saving a profile does not itself run a discovery search.
+**Keyword cache detail:** during discovery, the app may ask Muse Spark to extract search phrases from saved profile information and stores them in `profile_keywords`. The cache is refreshed when its profile/brief signature changes. It currently helps select additional leads from search sources; Muse Wonder receives the profile and brief directly. Saving a profile does not itself run a discovery search.
 
 If Wonder is unavailable during configured discovery, the app can retry with Muse Spark. The model can still return incomplete or mistaken information: each card links back to a source, and users should confirm eligibility and deadlines on the official page before applying. Search is **not exhaustive** across the whole web.
 
@@ -85,7 +85,7 @@ The first discovery response cannot reliably verify every detail across many sit
 
 ## Other personal features
 
-- **Quick Look:** Muse Spark can generate short topic suggestions from consented interests, search brief, and optional résumé; the app caches the result per user and invalidates it when relevant context changes. It does not show the same fixed set to every account.
+- **Quick Look:** Muse Spark can generate short topic suggestions from saved interests, search brief, and an optional shared résumé; the app caches the result per user and invalidates it when relevant context changes. It does not show the same fixed set to every account.
 - **Shared links:** The inbox stores user-provided URLs and captions. For known public Instagram and LinkedIn post URLs, the server may attempt a bounded, unauthenticated metadata preview. It does not bypass login walls, download reels, or fetch arbitrary websites. A blocked preview can still be saved with a caption.
 - **Sample walkthrough:** Fictional sample opportunities are kept separate from research-backed cards to teach new users how the interface works. A demo-only seed route can add manually reviewed cards for a recorded walkthrough; it does not call a model.
 
@@ -103,7 +103,7 @@ MongoDB uses the `opportunity_compass` database by default. The main collections
 | `opportunity_card_images`, `opportunity_status_images` | Account-scoped generated WebP artwork                                    |
 | `rate_limits`                                          | Expiring request and login-attempt counters                              |
 
-Ownership is derived from the authenticated server session, not a user ID supplied by the browser. Passwords use salted `scrypt` hashes; random session tokens are hashed in MongoDB and sent in `HttpOnly`, `SameSite=Lax` cookies (`Secure` on HTTPS). Cross-origin mutations are rejected. Résumé sharing with Meta requires a separate opt-in from profile sharing. Model requests and credentials remain server-side. Application limits restrict repeated chat, import, and image actions, but they are not a substitute for provider billing limits or production monitoring.
+Ownership is derived from the authenticated server session, not a user ID supplied by the browser. Passwords use salted `scrypt` hashes; random session tokens are hashed in MongoDB and sent in `HttpOnly`, `SameSite=Lax` cookies (`Secure` on HTTPS). Cross-origin mutations are rejected. Saving a profile enables Meta matching with profession, location, skills, interests, and experience; email, password, and age are excluded. Résumé sharing with Meta requires a separate option in the profile. Model requests and credentials remain server-side. Application limits restrict repeated chat, import, and image actions, but they are not a substitute for provider billing limits or production monitoring.
 
 ## Run locally
 

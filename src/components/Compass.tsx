@@ -135,6 +135,8 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     [newYears, setNewYears] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [resumeSharing, setResumeSharing] = useState(false);
+  const [resumeSharingBusy, setResumeSharingBusy] = useState(false);
   const [savingResearch, setSavingResearch] = useState("");
   const [openStatusSignal, setOpenStatusSignal] = useState(0);
   const [researchCount, setResearchCount] = useState<number | null>(null);
@@ -231,6 +233,12 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     const id = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(id);
   }, [toast]);
+  useEffect(() => {
+    if (!user?.id) return;
+    api("agent/state")
+      .then((state) => setResumeSharing(!!state.preferences?.useResume))
+      .catch(() => {});
+  }, [user?.id]);
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
@@ -466,7 +474,11 @@ export default function Compass({ initialUser }: { initialUser: User }) {
       if (user) {
         const b = await api("profile", "PUT", next);
         setUser(b.user);
-        void api("agent/quick-look", "POST").catch(() => {});
+        void api("agent/quick-look", "POST")
+          .then(() =>
+            window.dispatchEvent(new Event("compass-quick-look-updated")),
+          )
+          .catch(() => {});
       } else setPreviewProfile(next);
       setOnboarding(false);
       setToast(
@@ -509,6 +521,26 @@ export default function Compass({ initialUser }: { initialUser: User }) {
     } finally {
       setResumeBusy(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+  async function changeResumeSharing(enabled: boolean) {
+    setResumeSharingBusy(true);
+    try {
+      const state = await api("agent/state");
+      const result = await api("agent/preferences", "PUT", {
+        ...state.preferences,
+        useResume: enabled,
+      });
+      setResumeSharing(!!result.preferences.useResume);
+      setToast(
+        enabled
+          ? "Meta AI can now use your résumé for matching."
+          : "Résumé sharing is off.",
+      );
+    } catch (cause) {
+      setToast((cause as Error).message);
+    } finally {
+      setResumeSharingBusy(false);
     }
   }
   async function signOut() {
@@ -714,6 +746,13 @@ export default function Compass({ initialUser }: { initialUser: User }) {
             ? "Explore with this profile"
             : "Update preview profile"}
       </button>
+      {user && (
+        <p className="fineprint">
+          Saving your profile lets Meta AI use your profession, location,
+          skills, interests, and experience to personalize searches. Your résumé
+          is a separate choice below.
+        </p>
+      )}
       {!user && (
         <p className="fineprint">
           Preview changes stay in this page session. Sign in with a connected
@@ -1057,7 +1096,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   setAgentPrompt(prompt);
                   navigate("agent");
                 }}
-                onSetup={() => navigate("agent")}
+                onSetup={() => navigate("profile")}
               />
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
@@ -1659,6 +1698,8 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                             try {
                               await api("resume", "DELETE");
                               setUser({ ...user, resume: null });
+                              if (resumeSharing)
+                                void changeResumeSharing(false);
                               setToast("Résumé removed.");
                             } catch (e) {
                               setToast((e as Error).message);
@@ -1689,10 +1730,29 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                       )}{" "}
                       {user?.resume ? "Replace résumé" : "Upload résumé"}
                     </button>
+                    {user?.resume && (
+                      <label className="resume-sharing">
+                        <input
+                          type="checkbox"
+                          checked={resumeSharing}
+                          disabled={resumeSharingBusy}
+                          onChange={(event) =>
+                            void changeResumeSharing(event.target.checked)
+                          }
+                        />
+                        <span>
+                          <strong>Use my résumé with Meta AI</strong>
+                          <small>
+                            When enabled, Meta can read this PDF or text file to
+                            match opportunities to your experience. You can turn
+                            it off here.
+                          </small>
+                        </span>
+                      </label>
+                    )}
                     <p className="fineprint">
-                      Your résumé stays in your account. If you enable résumé
-                      sharing in Chat & links, Claude can use it when you ask
-                      for opportunities. You can also add skills above.
+                      Your résumé stays in your account. It is sent to Meta AI
+                      only while the option above is enabled.
                     </p>
                   </section>
                   <section className="profile-tip">

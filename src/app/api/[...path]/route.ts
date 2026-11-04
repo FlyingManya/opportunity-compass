@@ -130,6 +130,25 @@ async function handle(req: NextRequest) {
           { _id: u._id },
           { $set: { profile, updatedAt: new Date() } },
         );
+      const preferences = db.collection("agent_preferences");
+      const existing = await preferences.findOne({ userId });
+      await preferences.updateOne(
+        { userId },
+        {
+          $set: {
+            preferences: {
+              brief: "",
+              sources: [],
+              useResume: false,
+              ...existing?.preferences,
+              useProfile: true,
+              useMetaContext: true,
+            },
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
       return json({ user: await publicUser({ ...u, profile }) });
     }
     if (req.method === "GET" && pathname === "saved") {

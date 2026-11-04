@@ -305,28 +305,6 @@ export default function AgentPanel({
       setBusy(false);
     }
   }
-  async function enableProfileMatching() {
-    setBusy(true);
-    setError("");
-    try {
-      const updated = {
-        ...preferences,
-        useProfile: true,
-        useMetaContext: true,
-        useResume: false,
-      };
-      const result = await request("preferences", "PUT", updated);
-      setPreferences(result.preferences);
-      setNotice(
-        "Profile matching is on. Your résumé remains excluded. Quick Look will refresh when you return to Discover.",
-      );
-      window.dispatchEvent(new Event("compass-quick-look-updated"));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function saveLink(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -481,26 +459,6 @@ export default function AgentPanel({
               aria-labelledby="agent-chat-tab"
             >
               <div className="agent-conversation">
-                {mode.label === "Meta AI" &&
-                  (!preferences.useMetaContext || !preferences.useProfile) && (
-                    <div className="agent-profile-prompt">
-                      <strong>Use your saved profile for matching?</strong>
-                      <p>
-                        This shares your profession, location, skills,
-                        interests, experience, search brief, recent chat, and
-                        active shared links with Meta AI. Your résumé stays
-                        excluded.
-                      </p>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={enableProfileMatching}
-                        disabled={busy}
-                      >
-                        Share profile with Meta
-                      </button>
-                    </div>
-                  )}
                 <div className="agent-chat-toolbar">
                   <span>Conversation</span>
                   <button
@@ -685,8 +643,8 @@ export default function AgentPanel({
               <h2>What are you looking for?</h2>
               <p>
                 Save what you want to find and any websites you trust. The next
-                chat search uses your saved brief when AI context sharing is
-                enabled. Saving does not search the web or add cards by itself.
+                chat search uses your saved brief. Saving does not search the
+                web or add cards by itself.
               </p>
               <label>
                 My opportunity brief
@@ -716,7 +674,7 @@ export default function AgentPanel({
                 />
                 <small>
                   One HTTPS link per line, up to 15. For Meta AI, your saved
-                  sites guide research when “Use my saved context” is enabled.
+                  sites guide your next Meta AI search.
                 </small>
               </label>
               <div className="agent-source-examples">
@@ -746,75 +704,11 @@ export default function AgentPanel({
                   eligibility and dates.
                 </small>
               </div>
-              <label className="agent-profile-consent">
-                <input
-                  type="checkbox"
-                  checked={preferences.useProfile}
-                  onChange={(event) =>
-                    setPreferences({
-                      ...preferences,
-                      useProfile: event.target.checked,
-                    })
-                  }
-                />
-                <span>
-                  Include my profile in AI requests
-                  <small>
-                    Shares profession, location, skills, interests, and
-                    experience{" "}
-                    {mode.destination
-                      ? `with ${mode.destination}`
-                      : "with the configured model when connected"}
-                    . Your email, password, age, and résumé are excluded unless
-                    you separately opt into résumé sharing. Messages, brief, and
-                    active shared links are used as conversation context.
-                  </small>
-                </span>
-              </label>
-              <label className="agent-profile-consent">
-                <input
-                  type="checkbox"
-                  checked={!!preferences.useResume}
-                  onChange={(event) =>
-                    setPreferences({
-                      ...preferences,
-                      useResume: event.target.checked,
-                    })
-                  }
-                />
-                <span>
-                  Include my uploaded résumé in AI requests
-                  <small>
-                    Shares the résumé file with{" "}
-                    {mode.destination || "the connected AI provider"} when you
-                    send a message. Turn this off at any time. Requires an
-                    uploaded PDF or text résumé.
-                  </small>
-                </span>
-              </label>
-              {mode.label === "Meta AI" && (
-                <label className="agent-profile-consent">
-                  <input
-                    type="checkbox"
-                    checked={!!preferences.useMetaContext}
-                    onChange={(event) =>
-                      setPreferences({
-                        ...preferences,
-                        useMetaContext: event.target.checked,
-                      })
-                    }
-                  />
-                  <span>
-                    Use my saved context with Meta AI
-                    <small>
-                      Shares my search brief, profile fields I enabled, active
-                      shared links, recent conversation, and résumé if enabled
-                      with api.meta.ai. Until enabled, Meta receives only the
-                      latest message and today's date.
-                    </small>
-                  </span>
-                </label>
-              )}
+              <p className="agent-brief-context">
+                Your saved profile, search brief, recent chat, and active shared
+                links help Meta AI personalize searches. Résumé sharing is a
+                separate choice in My profile.
+              </p>
               <button className="primary" disabled={busy}>
                 {busy ? (
                   <LoaderCircle size={17} className="spin" />

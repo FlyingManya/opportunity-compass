@@ -106,27 +106,6 @@
   overflow: hidden;
   background: #fff;
 }
-.agent-profile-prompt {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  padding: 14px 24px;
-  background: #f5f0fb;
-  border-bottom: 1px solid #e8e1ed;
-}
-.agent-profile-prompt strong {
-  color: #5c4b70;
-}
-.agent-profile-prompt p {
-  flex: 1 1 320px;
-  margin: 0;
-  color: #6f6279;
-  line-height: 1.45;
-}
-.agent-profile-prompt button {
-  flex: 0 0 auto;
-}
 .agent-chat-toolbar {
   display: flex;
   align-items: center;

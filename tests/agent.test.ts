@@ -774,7 +774,7 @@ test("assistant context excludes the profile by default and limits opted-in fiel
       "You cannot change account settings or save profile details through this chat",
     ),
   );
-  assert.ok(defaults.includes("profile sharing is off"));
+  assert.ok(defaults.includes("résumé sharing is off"));
   assert.ok(defaults.includes("NO browsing or search tools"));
   const consented = agentInstructions(
     { ...emptyAgentPreferences, useProfile: true },
@@ -1081,6 +1081,47 @@ test("Quick Look shows no coded suggestions without Meta consent", async () => {
     async () => null,
   );
   assert.deepEqual((await post.json()).topics, []);
+});
+test("a completed profile becomes Meta context while résumé sharing stays separate", async () => {
+  const db = memoryDatabase();
+  await db.collection("agent_preferences").insertOne({
+    userId: "alice",
+    preferences: {
+      ...emptyAgentPreferences,
+      brief: "medical research",
+      useResume: false,
+    },
+  });
+  const response = await handleAgent(
+    db,
+    "alice",
+    { ...emptyProfile, onboarded: true, profession: "Medical student" },
+    "agent/state",
+    "GET",
+    async () => null,
+  );
+  const state = await response.json();
+  assert.equal(state.preferences.useProfile, true);
+  assert.equal(state.preferences.useMetaContext, true);
+  assert.equal(state.preferences.useResume, false);
+  assert.equal(state.preferences.brief, "medical research");
+  const updated = await handleAgent(
+    db,
+    "alice",
+    { ...emptyProfile, onboarded: true, profession: "Medical student" },
+    "agent/preferences",
+    "PUT",
+    async () => ({
+      ...state.preferences,
+      useProfile: false,
+      useMetaContext: false,
+      useResume: true,
+    }),
+  );
+  const { preferences } = await updated.json();
+  assert.equal(preferences.useProfile, true);
+  assert.equal(preferences.useMetaContext, true);
+  assert.equal(preferences.useResume, true);
 });
 test("opportunity images are account-scoped and cached without another Meta call", async () => {
   const db = memoryDatabase();

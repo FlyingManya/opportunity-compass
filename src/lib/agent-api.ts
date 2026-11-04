@@ -263,6 +263,34 @@ export async function handleAgent(
   const messages = db.collection("agent_messages");
   const leads = db.collection("shared_leads");
   const briefs = db.collection("agent_preferences");
+  // A saved profile is first-party account context. Résumé sharing remains a
+  // separate choice; retain that preference while migrating older accounts.
+  if (
+    profile.onboarded &&
+    ["agent/state", "agent/quick-look", "agent/chat"].includes(path)
+  ) {
+    const existing = await briefs.findOne({ userId });
+    if (
+      !existing?.preferences?.useProfile ||
+      !existing?.preferences?.useMetaContext
+    ) {
+      await briefs.updateOne(
+        { userId },
+        {
+          $set: {
+            preferences: {
+              ...emptyAgentPreferences,
+              ...existing?.preferences,
+              useProfile: true,
+              useMetaContext: true,
+            },
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+    }
+  }
   const discoveries = db.collection<DiscoveredOpportunity>(
     "discovered_opportunities",
   );
@@ -474,9 +502,9 @@ export async function handleAgent(
     const cache = db.collection("quick_look_topics");
     const saved = await cache.findOne({ userId });
     const setupReason = !preferences?.useMetaContext
-      ? "Turn on saved-context sharing in Chat & links to create personal ideas."
+      ? "Save your profile to create personal ideas."
       : !hasSignals
-        ? "Add interests to your profile or a search brief, then choose what to share with Meta AI."
+        ? "Add interests to your profile or a search brief to create personal ideas."
         : !process.env.MODEL_API_KEY
           ? "Meta AI is not connected right now."
           : "";
@@ -943,6 +971,10 @@ export async function handleAgent(
   }
   if (path === "agent/preferences" && method === "PUT") {
     const preferences = agentPreferencesSchema.parse(await input());
+    if (profile.onboarded) {
+      preferences.useProfile = true;
+      preferences.useMetaContext = true;
+    }
     preferences.sources = [
       ...new Set(preferences.sources.map((url) => publicLink(url)!)),
     ];

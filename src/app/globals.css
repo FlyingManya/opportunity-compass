@@ -1501,6 +1501,29 @@ h1 {
   width: 100%;
   margin-top: 13px;
 }
+.resume-sharing {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.resume-sharing input {
+  margin-top: 4px;
+  accent-color: #8865bb;
+}
+.resume-sharing span {
+  display: grid;
+  gap: 4px;
+}
+.resume-sharing strong {
+  font-size: 14px;
+}
+.resume-sharing small {
+  color: #756c80;
+  line-height: 1.5;
+}
 .aside-note {
   border-top: 1px solid var(--line);
   margin-top: 25px;
