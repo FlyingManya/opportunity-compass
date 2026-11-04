@@ -473,9 +473,18 @@ export async function handleAgent(
     );
     const cache = db.collection("quick_look_topics");
     const saved = await cache.findOne({ userId });
+    const setupReason = !preferences?.useMetaContext
+      ? "Turn on saved-context sharing in Chat & links to create personal ideas."
+      : !hasSignals
+        ? "Add interests to your profile or a search brief, then choose what to share with Meta AI."
+        : !process.env.MODEL_API_KEY
+          ? "Meta AI is not connected right now."
+          : "";
     if (method === "GET")
       return json({
         topics: saved?.signature === signature ? saved.topics : [],
+        unavailable: !!setupReason,
+        reason: setupReason,
         stale:
           saved?.signature !== signature &&
           hasSignals &&
@@ -488,9 +497,13 @@ export async function handleAgent(
       !preferences?.useMetaContext ||
       !process.env.MODEL_API_KEY
     )
-      return json({ topics: [], unavailable: true });
+      return json({ topics: [], unavailable: true, reason: setupReason });
     if (!(await allowed(db, userId, "quick-look")))
-      return json({ topics: [], unavailable: true });
+      return json({
+        topics: [],
+        unavailable: true,
+        reason: "Too many requests right now. Please retry shortly.",
+      });
     try {
       const text = quickLookMetaPrompt(profile, preferences, resumeText);
       const input: unknown =
@@ -545,7 +558,11 @@ export async function handleAgent(
       console.warn("Quick Look generation unavailable", {
         reason: error instanceof Error ? error.message : "unknown",
       });
-      return json({ topics: [], unavailable: true });
+      return json({
+        topics: [],
+        unavailable: true,
+        reason: "Meta could not create ideas right now. Please retry.",
+      });
     }
   }
   if (path.startsWith("agent/status-image/") && method === "GET") {

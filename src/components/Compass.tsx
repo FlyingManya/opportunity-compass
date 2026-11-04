@@ -1057,6 +1057,7 @@ export default function Compass({ initialUser }: { initialUser: User }) {
                   setAgentPrompt(prompt);
                   navigate("agent");
                 }}
+                onSetup={() => navigate("agent")}
               />
               <DiscoveryFeed
                 openStatusSignal={openStatusSignal}
