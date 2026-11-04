@@ -39,7 +39,7 @@ The browser calls the app's server routes. **The Meta models do not connect to M
 
 For a discovery request, the server combines the user's latest question with the **current date in their chosen timezone** and the context they have opted to share. That context can include their profile, search brief, preferred source sites, recent conversation, saved leads, and separately authorized résumé. A user's latest request and saved brief define the target; older chat topics are not treated as permanent interests.
 
-When `META_DISCOVERY_MODEL=muse-wonder-1.0` is configured, the request asks **Muse Wonder** to use Meta's `web_search` tool. It requests up to 20 structured candidates with a title, organizer, description, source URL, reason for relevance, and a `YYYY-MM-DD` application deadline or an empty value if the date is unknown. The server then:
+When `META_DISCOVERY_MODEL=muse-wonder-1.0` is configured, the request asks **Muse Wonder** to use Meta's `web_search` tool. Each request limits web-search calls to six and asks for up to eight structured candidates with a title, organizer, description, source URL, reason for relevance, and a `YYYY-MM-DD` application deadline or an empty value if the date is unknown. If the model stops before producing a final summary, cited search results can still become unverified leads. The server then:
 
 - checks required fields and that a returned URL matches the search sources;
 - rejects malformed or known past deadlines and avoids duplicate opportunities;
