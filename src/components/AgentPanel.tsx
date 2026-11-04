@@ -72,6 +72,9 @@ export default function AgentPanel({
   });
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingChat, setPendingChat] = useState<
+    "research" | "reply" | "note" | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -157,7 +160,7 @@ export default function AgentPanel({
   useEffect(() => {
     if (messages.length)
       end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, pendingChat]);
   useEffect(() => {
     if (!importing) return;
     priorFocus.current = document.activeElement as HTMLElement;
@@ -191,22 +194,70 @@ export default function AgentPanel({
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
-    if (!message.trim() || busy) return;
+    const content = message.trim();
+    if (!content || busy) return;
+    const submittedAt = Date.now();
+    const optimisticId = `pending-${crypto.randomUUID()}`;
+    const researching =
+      mode.search &&
+      /\b(find|search|show|recommend|discover|looking for|opportunit(?:y|ies)|hackathons?|fellowships?|scholarships?|competitions?|events?|jobs?|programs?)\b/i.test(
+        content,
+      );
     setBusy(true);
+    setPendingChat(
+      mode.connected ? (researching ? "research" : "reply") : "note",
+    );
     setError("");
     setNotice("");
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: optimisticId,
+        role: "user",
+        content,
+        createdAt: new Date(submittedAt).toISOString(),
+      },
+    ]);
+    setMessage("");
     try {
-      const result = await request("chat", "POST", { message });
+      const result = await request("chat", "POST", { message: content });
       setMessages((previous) => [
-        ...previous,
-        result.sent,
+        ...previous.map((item) =>
+          item.id === optimisticId ? result.sent : item,
+        ),
         ...(result.reply ? [result.reply] : []),
       ]);
-      if (result.reply) setMessage("");
       setNotice(result.notice || "");
     } catch (cause) {
-      setError((cause as Error).message);
+      try {
+        const state = await request("state");
+        const saved = (state.messages as AgentMessage[]).some(
+          (item) =>
+            item.role === "user" &&
+            item.content === content &&
+            new Date(item.createdAt).getTime() >= submittedAt - 10000,
+        );
+        if (saved) {
+          setMessages(state.messages);
+          setNotice(
+            "Your message was saved, but the response could not be confirmed. Please check again in a moment.",
+          );
+        } else {
+          setMessages((previous) =>
+            previous.filter((item) => item.id !== optimisticId),
+          );
+          setMessage((previous) => previous || content);
+          setError((cause as Error).message);
+        }
+      } catch {
+        setMessages((previous) =>
+          previous.filter((item) => item.id !== optimisticId),
+        );
+        setMessage((previous) => previous || content);
+        setError((cause as Error).message);
+      }
     } finally {
+      setPendingChat(null);
       setBusy(false);
     }
   }
@@ -487,6 +538,29 @@ export default function AgentPanel({
                       </time>
                     </article>
                   ))}
+                  {pendingChat && (
+                    <article
+                      className="agent-message assistant agent-progress"
+                      role="status"
+                    >
+                      <span>Opportunity Compass</span>
+                      <p>
+                        <LoaderCircle
+                          size={17}
+                          className="spin"
+                          aria-hidden="true"
+                        />
+                        {pendingChat === "research"
+                          ? "I’m researching current opportunities and checking their sources…"
+                          : pendingChat === "reply"
+                            ? "I’m thinking about your message…"
+                            : "I’m saving your note…"}
+                      </p>
+                      {pendingChat === "research" && (
+                        <small>Web research can take a minute or two.</small>
+                      )}
+                    </article>
+                  )}
                   <div ref={end} />
                 </div>
                 <form className="agent-composer" onSubmit={send}>

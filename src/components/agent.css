@@ -208,6 +208,18 @@
   font-size: 11px;
   color: #9a89a6;
 }
+.agent-progress p {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.agent-progress p svg {
+  flex-shrink: 0;
+}
+.agent-progress small {
+  color: #8d7a9a;
+  font-size: 12px;
+}
 .agent-citations {
   display: grid;
   gap: 7px;
