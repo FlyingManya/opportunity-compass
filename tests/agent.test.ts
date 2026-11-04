@@ -768,6 +768,13 @@ test("assistant context excludes the profile by default and limits opted-in fiel
   const defaults = agentInstructions(emptyAgentPreferences, profile, [], false);
   assert.ok(!defaults.includes("Hidden Name"));
   assert.ok(!defaults.includes("Delhi"));
+  assert.ok(defaults.includes("a profile with opportunity details is saved"));
+  assert.ok(
+    defaults.includes(
+      "You cannot change account settings or save profile details through this chat",
+    ),
+  );
+  assert.ok(defaults.includes("profile sharing is off"));
   assert.ok(defaults.includes("NO browsing or search tools"));
   const consented = agentInstructions(
     { ...emptyAgentPreferences, useProfile: true },

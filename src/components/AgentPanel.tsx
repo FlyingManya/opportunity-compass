@@ -305,6 +305,28 @@ export default function AgentPanel({
       setBusy(false);
     }
   }
+  async function enableProfileMatching() {
+    setBusy(true);
+    setError("");
+    try {
+      const updated = {
+        ...preferences,
+        useProfile: true,
+        useMetaContext: true,
+        useResume: false,
+      };
+      const result = await request("preferences", "PUT", updated);
+      setPreferences(result.preferences);
+      setNotice(
+        "Profile matching is on. Your résumé remains excluded. Quick Look will refresh when you return to Discover.",
+      );
+      window.dispatchEvent(new Event("compass-quick-look-updated"));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function saveLink(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -459,6 +481,26 @@ export default function AgentPanel({
               aria-labelledby="agent-chat-tab"
             >
               <div className="agent-conversation">
+                {mode.label === "Meta AI" &&
+                  (!preferences.useMetaContext || !preferences.useProfile) && (
+                    <div className="agent-profile-prompt">
+                      <strong>Use your saved profile for matching?</strong>
+                      <p>
+                        This shares your profession, location, skills,
+                        interests, experience, search brief, recent chat, and
+                        active shared links with Meta AI. Your résumé stays
+                        excluded.
+                      </p>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={enableProfileMatching}
+                        disabled={busy}
+                      >
+                        Share profile with Meta
+                      </button>
+                    </div>
+                  )}
                 <div className="agent-chat-toolbar">
                   <span>Conversation</span>
                   <button
