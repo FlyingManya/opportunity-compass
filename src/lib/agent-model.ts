@@ -271,7 +271,7 @@ export async function askAgent(
     leads,
     config.provider !== "hosted",
   );
-  const discoveryInstructions = `\nDISCOVERY TASK: Use web_search for the latest request. Find distinct individual opportunity links across relevant sites, including sites the user saved in their search brief. Return only JSON: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD or empty string","sourceUrl":"https://...","reason":"..."}]}. Return up to 20; copy URLs from cited pages and never invent them. Use an exact future deadline only when the page confirms it; otherwise use an empty string. Exclude clearly expired results. Keep descriptions brief. No Markdown.`;
+  const discoveryInstructions = `\nDISCOVERY TASK: Use web_search for the latest request. Search at most six times, then answer with the useful results you have, even if there are fewer than requested. Find distinct individual opportunity links across relevant sites, including sites the user saved in their search brief. Return only JSON: {"opportunities":[{"title":"...","organizer":"...","description":"...","deadline":"YYYY-MM-DD or empty string","sourceUrl":"https://...","reason":"..."}]}. Return up to 8; copy URLs from cited pages and never invent them. Use an exact future deadline only when the page confirms it; otherwise use an empty string. Exclude clearly expired results. Keep descriptions brief. No Markdown.`;
   if (discover && (config.provider === "claude" || config.provider === "meta"))
     instructions += discoveryInstructions;
   if (config.provider === "meta" && !preferences.useMetaContext) {
@@ -427,8 +427,11 @@ export async function askAgent(
                       config.model,
                     input: discoveryInput,
                     tools: [{ type: "web_search" }],
+                    max_tool_calls: 6,
+                    include: ["web_search_call.results"],
                     text: discoveryFormat,
                     max_output_tokens: 6000,
+                    reasoning: { effort: "low" },
                     store: false,
                   }
                 : {
@@ -445,6 +448,7 @@ export async function askAgent(
                         search_context_size: discover ? "high" : "medium",
                       },
                     ],
+                    ...(discover ? { max_tool_calls: 6 } : {}),
                     ...(discover ? { text: discoveryFormat } : {}),
                     ...(discover
                       ? { include: ["web_search_call.results"] }

@@ -1477,7 +1477,8 @@ test("model requests select the configured transport and do not expose keys in s
     assert.ok(calls[4].body.text, JSON.stringify(calls[4].body));
     assert.equal(calls[4].body.text.format.type, "json_schema");
     assert.equal(calls[4].body.text.format.strict, true);
-    assert.equal(calls[4].body.include, undefined);
+    assert.deepEqual(calls[4].body.include, ["web_search_call.results"]);
+    assert.equal(calls[4].body.max_tool_calls, 6);
     assert.ok(!JSON.stringify(calls[4].body).includes("Engineer"));
     assert.ok(!JSON.stringify(calls[4].body).includes("file_data"));
     await askAgent(
@@ -1497,6 +1498,7 @@ test("model requests select the configured transport and do not expose keys in s
     assert.ok(calls[5].body.instructions.includes("Engineer"));
     assert.ok(calls[5].body.instructions.includes("DISCOVERY TASK"));
     assert.equal(calls[5].body.text.format.name, "opportunity_discovery");
+    assert.equal(calls[5].body.max_tool_calls, 6);
     await askAgent(
       emptyAgentPreferences,
       emptyProfile,
@@ -1533,7 +1535,7 @@ test("model requests select the configured transport and do not expose keys in s
       listed,
     );
     assert.ok(calls[7].body.input.includes("PayPal AI Hackathon"));
-    assert.ok(calls[7].body.input.includes("up to 20"));
+    assert.ok(calls[7].body.input.includes("up to 8"));
     await askAgent(
       emptyAgentPreferences,
       emptyProfile,
@@ -1664,6 +1666,75 @@ test("Meta discovery retries once when web search has no final answer", async ()
     );
     assert.equal(result?.content, '{"opportunities":[]}');
     assert.deepEqual(models, ["muse-wonder-1.0", "muse-spark-1.3"]);
+  } finally {
+    globalThis.fetch = original;
+    if (previous.provider === undefined) delete process.env.AGENT_PROVIDER;
+    else process.env.AGENT_PROVIDER = previous.provider;
+    if (previous.key === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = previous.key;
+    if (previous.model === undefined) delete process.env.META_DISCOVERY_MODEL;
+    else process.env.META_DISCOVERY_MODEL = previous.model;
+  }
+});
+
+test("incomplete Meta search keeps cited links without another model call", async () => {
+  const previous = {
+    provider: process.env.AGENT_PROVIDER,
+    key: process.env.MODEL_API_KEY,
+    model: process.env.META_DISCOVERY_MODEL,
+  };
+  const original = globalThis.fetch;
+  process.env.AGENT_PROVIDER = "meta";
+  process.env.MODEL_API_KEY = "test-only";
+  process.env.META_DISCOVERY_MODEL = "muse-wonder-1.0";
+  const calls: any[] = [];
+  globalThis.fetch = (async (_url, options) => {
+    calls.push(JSON.parse(String(options?.body)));
+    return Response.json({
+      status: "incomplete",
+      output: [
+        {
+          type: "web_search_call",
+          results: [
+            {
+              title: "Medical Research Fellowship 2026",
+              url: "https://research.example.org/fellowship-2026",
+            },
+          ],
+        },
+        {
+          type: "message",
+          phase: "commentary",
+          content: [{ type: "output_text", text: "Still searching" }],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const result = await askAgent(
+      emptyAgentPreferences,
+      emptyProfile,
+      [],
+      [
+        {
+          id: "search",
+          role: "user",
+          content: "Find medical research fellowships",
+          createdAt: "2026-11-04T00:00:00Z",
+        },
+      ],
+      null,
+      true,
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].max_tool_calls, 6);
+    assert.deepEqual(calls[0].include, ["web_search_call.results"]);
+    assert.deepEqual(result?.sources, [
+      {
+        title: "Medical Research Fellowship 2026",
+        url: "https://research.example.org/fellowship-2026",
+      },
+    ]);
   } finally {
     globalThis.fetch = original;
     if (previous.provider === undefined) delete process.env.AGENT_PROVIDER;
